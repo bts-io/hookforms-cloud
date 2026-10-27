@@ -68,12 +68,12 @@ publicWebhooks.all('/hooks/:slug', async (c) => {
     }
   }
 
-  // Turnstile verification
-  if (inbox.turnstile_secret && body) {
-    const token = body['cf-turnstile-response'] as string | undefined;
-    delete body['cf-turnstile-response'];
+  // Turnstile verification: an inbox with a secret needs a token on every request, empty ones included.
+  if (inbox.turnstile_secret) {
+    const token = body?.['cf-turnstile-response'];
+    if (body) delete body['cf-turnstile-response'];
 
-    if (!token) {
+    if (typeof token !== 'string' || !token) {
       return c.json(
         { error: { code: 400, message: 'Missing Turnstile verification token' } },
         400,
