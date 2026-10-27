@@ -213,45 +213,32 @@ publicWebhooks.get('/demo/events', async (c) => {
     return c.json({ data: [] });
   }
 
-  // If ?id= is provided, return only that single event (prevents leaking other users' data)
+  // Only the event the visitor just sent, by id. Listing recent events would show other visitors' data.
   const eventId = c.req.query('id');
-  if (eventId) {
-    const event = await c.env.DB.prepare(
-      'SELECT id, method, body, received_at FROM webhook_events WHERE id = ? AND inbox_id = ?',
-    )
-      .bind(eventId, inbox.id)
-      .first<Record<string, unknown>>();
-
-    if (!event) {
-      return c.json({ data: [] });
-    }
-
-    return c.json({
-      data: [
-        {
-          id: event.id,
-          method: event.method,
-          body: event.body ? JSON.parse(event.body as string) : null,
-          received_at: event.received_at,
-        },
-      ],
-    });
+  if (!eventId) {
+    return c.json({ error: { code: 400, message: 'id is required' } }, 400);
   }
 
-  const results = await c.env.DB.prepare(
-    'SELECT id, method, body, received_at FROM webhook_events WHERE inbox_id = ? ORDER BY received_at DESC LIMIT 5',
+  const event = await c.env.DB.prepare(
+    'SELECT id, method, body, received_at FROM webhook_events WHERE id = ? AND inbox_id = ?',
   )
-    .bind(inbox.id)
-    .all();
+    .bind(eventId, inbox.id)
+    .first<Record<string, unknown>>();
 
-  const items = (results.results || []).map((e: Record<string, unknown>) => ({
-    id: e.id,
-    method: e.method,
-    body: e.body ? JSON.parse(e.body as string) : null,
-    received_at: e.received_at,
-  }));
+  if (!event) {
+    return c.json({ data: [] });
+  }
 
-  return c.json({ data: items });
+  return c.json({
+    data: [
+      {
+        id: event.id,
+        method: event.method,
+        body: event.body ? JSON.parse(event.body as string) : null,
+        received_at: event.received_at,
+      },
+    ],
+  });
 });
 
 // ---------------------------------------------------------------------------
