@@ -3,7 +3,7 @@ import type { Env, Inbox } from '../types';
 import { requireScope } from '../middleware/auth';
 import { verifyTurnstile } from '../services/turnstile';
 import { buildEmailHtml } from '../services/email-template';
-import { dispatchNotifications } from '../channels/dispatcher';
+import { dispatchNotifications, takeEmailSlot } from '../channels/dispatcher';
 import { formatValue } from '../services/format-value';
 
 const webhooks = new Hono<{ Bindings: Env }>();
@@ -177,7 +177,9 @@ publicWebhooks.all('/hooks/:slug', async (c) => {
         );
       }
 
-      if (inbox.notify_email) {
+      if (inbox.notify_email && !(await takeEmailSlot(c.env, inbox.id))) {
+        console.warn(`Email rate limit hit for inbox ${slug}`);
+      } else if (inbox.notify_email) {
         const prefix = inbox.email_subject_prefix || `[${slug}]`;
         const name = String(body.name || 'Unknown');
         const subjectDetail = name !== 'Unknown' ? `from ${name}` : 'New Submission';
@@ -192,6 +194,7 @@ publicWebhooks.all('/hooks/:slug', async (c) => {
               subject: `${prefix} ${subjectDetail}`,
               body: htmlBody,
               sender_name: inbox.sender_name ?? undefined,
+              inbox_id: inbox.id,
             }),
           );
         }

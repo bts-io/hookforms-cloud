@@ -21,6 +21,26 @@ import { buildEmailPayload } from './email';
 import { detectChannelType } from './detect';
 import { buildEmailHtml } from '../services/email-template';
 
+const EMAIL_LIMIT = 10;
+const EMAIL_WINDOW_SECONDS = 600;
+
+/**
+ * Per-inbox email budget: at most EMAIL_LIMIT submissions send email per window. Shared by
+ * email channels and the legacy notify_email field. Returns false when the budget is spent.
+ */
+export async function takeEmailSlot(env: Env, inboxId: string): Promise<boolean> {
+  const rateKey = `channel_email_rate:${inboxId}`;
+  try {
+    const current = await env.RATE_LIMIT.get(rateKey);
+    const count = current ? parseInt(current, 10) : 0;
+    if (count >= EMAIL_LIMIT) return false;
+    await env.RATE_LIMIT.put(rateKey, String(count + 1), { expirationTtl: EMAIL_WINDOW_SECONDS });
+  } catch {
+    // KV unavailable: allow through
+  }
+  return true;
+}
+
 /**
  * Dispatches notifications to all active channels for an inbox
  * Handles both HTTP-based channels (Discord, Slack, etc.) and email channels
@@ -139,20 +159,9 @@ export async function dispatchNotifications(
         }
 
         case 'email': {
-          // Rate limit: max 10 emails per inbox per 10 minutes
-          const rateKey = `channel_email_rate:${inbox.id}`;
-          try {
-            const current = await env.RATE_LIMIT.get(rateKey);
-            const count = current ? parseInt(current, 10) : 0;
-            if (count >= 10) {
-              console.warn(`Email rate limit hit for inbox ${inbox.slug}`);
-              break;
-            }
-            executionCtx.waitUntil(
-              env.RATE_LIMIT.put(rateKey, String(count + 1), { expirationTtl: 600 }),
-            );
-          } catch {
-            // KV unavailable — allow through
+          if (!(await takeEmailSlot(env, inbox.id))) {
+            console.warn(`Email rate limit hit for inbox ${inbox.slug}`);
+            break;
           }
 
           const emailPayload = buildEmailPayload(config as EmailChannelConfig);
