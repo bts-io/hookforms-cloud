@@ -177,13 +177,16 @@ function validateUrl(value: unknown, fieldName: string): ValidationResult | null
   return null; // no error
 }
 
+// One address, no spaces or line breaks, something on both sides of a single @ and a dot in the domain.
+const EMAIL_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
+
 function validateEmail(config: Record<string, unknown>): ValidationResult {
   const recipients = config.recipients;
   if (!Array.isArray(recipients) || recipients.length === 0) {
     return { valid: false, error: 'Email channel requires a non-empty recipients array' };
   }
   for (const r of recipients) {
-    if (typeof r !== 'string' || !r.includes('@')) {
+    if (typeof r !== 'string' || !EMAIL_RE.test(r)) {
       return { valid: false, error: `Invalid email address: ${r}` };
     }
   }

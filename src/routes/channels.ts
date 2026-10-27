@@ -31,6 +31,40 @@ function redactConfig(config: Record<string, unknown>): Record<string, unknown> 
   return redacted;
 }
 
+/**
+ * Check a channel type and config the same way for create and update: known type, webhook URL
+ * auto-detection, per-type validation (including the SSRF blocklist), then key normalisation.
+ */
+function resolveChannel(
+  type: unknown,
+  config: unknown,
+): { type: ChannelType; config: Record<string, unknown> } | { error: string } {
+  if (typeof type !== 'string' || !VALID_CHANNEL_TYPES.includes(type as ChannelType)) {
+    const suggestion = typeof type === 'string' ? suggestChannelType(type) : null;
+    const hint = suggestion ? ` Did you mean '${suggestion}'?` : '';
+    return { error: `Invalid channel type: ${String(type)}.${hint}` };
+  }
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    return { error: 'config must be an object' };
+  }
+  const cfg = config as Record<string, unknown>;
+  let channelType = type as ChannelType;
+
+  // Auto-detect webhook URL type (check both 'url' and 'webhook_url' keys)
+  if (channelType === 'webhook') {
+    const url = cfg.url || cfg.webhook_url;
+    if (typeof url === 'string' && url) {
+      const detected = detectChannelType(url);
+      if (detected !== 'webhook') channelType = detected as ChannelType;
+    }
+  }
+
+  const validation = validateChannelConfig(channelType, cfg);
+  if (!validation.valid) return { error: validation.error || 'Invalid config' };
+
+  return { type: channelType, config: normalizeChannelConfig(channelType, cfg) };
+}
+
 // ---------------------------------------------------------------------------
 // Channel CRUD (nested under /inboxes/:slug/channels)
 // ---------------------------------------------------------------------------
@@ -55,32 +89,11 @@ channels.post('/inboxes/:slug/channels', requireScope('webhooks'), async (c) => 
     return c.json({ error: { code: 400, message: 'type and config are required' } }, 400);
   }
 
-  // Validate channel type
-  let channelType = body.type;
-  if (!VALID_CHANNEL_TYPES.includes(channelType)) {
-    const suggestion = suggestChannelType(channelType);
-    const hint = suggestion ? ` Did you mean '${suggestion}'?` : '';
-    return c.json({ error: { code: 400, message: `Invalid channel type: ${channelType}.${hint}` } }, 400);
+  const resolved = resolveChannel(body.type, body.config);
+  if ('error' in resolved) {
+    return c.json({ error: { code: 400, message: resolved.error } }, 400);
   }
-
-  // Auto-detect webhook URL type (check both 'url' and 'webhook_url' keys)
-  if (channelType === 'webhook') {
-    const url = (body.config.url || body.config.webhook_url) as string | undefined;
-    if (url) {
-      const detected = detectChannelType(url);
-      if (detected !== 'webhook') {
-        channelType = detected as ChannelType;
-      }
-    }
-  }
-
-  // Validate config for the resolved channel type
-  const validation = validateChannelConfig(channelType, body.config);
-  if (!validation.valid) {
-    return c.json({ error: { code: 400, message: validation.error } }, 400);
-  }
-
-  const config = normalizeChannelConfig(channelType, body.config);
+  const { type: channelType, config } = resolved;
 
   const id = crypto.randomUUID();
   await c.env.DB.prepare(
@@ -148,27 +161,25 @@ channels.patch('/inboxes/:slug/channels/:channelId', requireScope('webhooks'), a
 
   const body = await c.req.json<Record<string, unknown>>();
 
-  const allowed = ['type', 'label', 'config', 'is_active'];
   const updates: string[] = [];
   const values: unknown[] = [];
 
-  for (const field of allowed) {
+  // A new type or config is checked as a whole, exactly as on create.
+  if ('type' in body || 'config' in body) {
+    const type = 'type' in body ? body.type : existing.type;
+    const config = 'config' in body ? body.config : JSON.parse(existing.config);
+    const resolved = resolveChannel(type, config);
+    if ('error' in resolved) {
+      return c.json({ error: { code: 400, message: resolved.error } }, 400);
+    }
+    updates.push('type = ?', 'config = ?');
+    values.push(resolved.type, JSON.stringify(resolved.config));
+  }
+
+  for (const field of ['label', 'is_active']) {
     if (field in body) {
-      if (field === 'config') {
-        const type = ((body.type as ChannelType | undefined) ?? existing.type) as ChannelType;
-        updates.push('config = ?');
-        values.push(JSON.stringify(normalizeChannelConfig(type, body.config as Record<string, unknown>)));
-      } else if (field === 'type') {
-        const newType = body.type as string;
-        if (!VALID_CHANNEL_TYPES.includes(newType as ChannelType)) {
-          return c.json({ error: { code: 400, message: `Invalid channel type: ${newType}` } }, 400);
-        }
-        updates.push('type = ?');
-        values.push(newType);
-      } else {
-        updates.push(`${field} = ?`);
-        values.push(body[field] ?? null);
-      }
+      updates.push(`${field} = ?`);
+      values.push(body[field] ?? null);
     }
   }
 
