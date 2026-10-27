@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
 import { requireScope, generateKey, hashKey } from '../middleware/auth';
+import { parsePaging } from '../services/pagination';
 
 const auth = new Hono<{ Bindings: Env }>();
 
@@ -57,8 +58,11 @@ auth.post('/keys', requireScope('admin'), async (c) => {
 });
 
 auth.get('/keys', requireScope('admin'), async (c) => {
-  const limit = Math.min(parseInt(c.req.query('limit') || '50'), 200);
-  const offset = parseInt(c.req.query('offset') || '0');
+  const paging = parsePaging(c.req.query('limit'), c.req.query('offset'));
+  if ('error' in paging) {
+    return c.json({ error: { code: 400, message: paging.error } }, 400);
+  }
+  const { limit, offset } = paging;
 
   const total = await c.env.DB.prepare('SELECT COUNT(*) as count FROM api_keys').first<{
     count: number;

@@ -7,6 +7,7 @@ import { dispatchNotifications, takeEmailSlot } from '../channels/dispatcher';
 import { formatValue } from '../services/format-value';
 import { buildDiscordPayload } from '../channels/discord';
 import { checkOutboundUrl } from '../channels/validate';
+import { parsePaging } from '../services/pagination';
 
 const webhooks = new Hono<{ Bindings: Env }>();
 
@@ -253,8 +254,11 @@ publicWebhooks.get('/demo/events', async (c) => {
 // ---------------------------------------------------------------------------
 
 webhooks.get('/inboxes', requireScope('webhooks'), async (c) => {
-  const limit = Math.min(parseInt(c.req.query('limit') || '50'), 200);
-  const offset = parseInt(c.req.query('offset') || '0');
+  const paging = parsePaging(c.req.query('limit'), c.req.query('offset'));
+  if ('error' in paging) {
+    return c.json({ error: { code: 400, message: paging.error } }, 400);
+  }
+  const { limit, offset } = paging;
 
   const total = await c.env.DB.prepare('SELECT COUNT(*) as count FROM webhook_inboxes').first<{
     count: number;
@@ -405,8 +409,11 @@ webhooks.delete('/inboxes/:slug', requireScope('webhooks'), async (c) => {
 
 webhooks.get('/:slug/events', requireScope('webhooks'), async (c) => {
   const slug = c.req.param('slug');
-  const limit = Math.min(parseInt(c.req.query('limit') || '50'), 200);
-  const offset = parseInt(c.req.query('offset') || '0');
+  const paging = parsePaging(c.req.query('limit'), c.req.query('offset'));
+  if ('error' in paging) {
+    return c.json({ error: { code: 400, message: paging.error } }, 400);
+  }
+  const { limit, offset } = paging;
 
   const inbox = await c.env.DB.prepare('SELECT id FROM webhook_inboxes WHERE slug = ?')
     .bind(slug)
