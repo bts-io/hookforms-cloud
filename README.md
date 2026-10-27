@@ -175,6 +175,17 @@ Supported: **Gmail** (OAuth), **Resend**, **SendGrid**.
 
 Provider resolution: inbox-specific > global > env-based Gmail.
 
+`from_email` (Gmail: `sender_email`) takes a bare address or `Name <address>`. A name given that way is stored as `from_name` and used when the inbox has no `sender_name` of its own.
+
+To check delivery, an admin key can send a test email through the provider a real notification would use (add `?inbox=<slug>` to test an inbox's own provider). The reply says which provider sent it:
+
+```bash
+curl -X POST "https://YOUR_WORKER_URL/v1/diag/test-email?inbox=contact" \
+  -H "X-API-Key: YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"to": "you@yourdomain.com"}'
+```
+
 ### Gmail Setup
 
 ```bash

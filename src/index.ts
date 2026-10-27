@@ -5,7 +5,7 @@ import { rateLimitMiddleware } from './middleware/rate-limit';
 import { webhooks, publicWebhooks } from './routes/webhooks';
 import { auth } from './routes/auth';
 import { channels } from './routes/channels';
-import { resolveEmailProvider, GmailProvider } from './providers';
+import { resolveEmailProvider, resolveEmailProviderWithSource, GmailProvider } from './providers';
 import { requireScope } from './middleware/auth';
 import { buildEmail } from './services/email-template';
 
@@ -92,6 +92,8 @@ app.get('/v1/diag/gmail', requireScope('admin'), async (c) => {
   return c.json({ data: checks });
 });
 
+// Sends one email through the same provider a real notification would use: the inbox's own
+// provider when ?inbox= is given, else the global provider, else env Gmail.
 app.post('/v1/diag/test-email', requireScope('admin'), async (c) => {
   const body = await c.req.json<{ to?: string }>();
   const to = body.to || c.env.GMAIL_SENDER_EMAIL || '';
@@ -100,32 +102,47 @@ app.post('/v1/diag/test-email', requireScope('admin'), async (c) => {
     return c.json({ error: { code: 400, message: 'No recipient - provide "to" or set GMAIL_SENDER_EMAIL' } }, 400);
   }
 
-  try {
-    const provider = GmailProvider.fromEnv(c.env);
-    if (!provider) {
-      return c.json({ error: { code: 500, message: 'Gmail not configured in env' } }, 500);
+  const inboxSlug = c.req.query('inbox');
+  let inbox: { id: string; sender_name: string | null } | null = null;
+  if (inboxSlug) {
+    inbox = await c.env.DB.prepare('SELECT id, sender_name FROM webhook_inboxes WHERE slug = ?')
+      .bind(inboxSlug)
+      .first<{ id: string; sender_name: string | null }>();
+    if (!inbox) {
+      return c.json({ error: { code: 404, message: 'Inbox not found' } }, 404);
     }
+  }
+
+  let providerInfo: { source: string; type: string } | undefined;
+  try {
+    const resolved = await resolveEmailProviderWithSource(c.env, inbox?.id ?? null);
+    if (!resolved) {
+      return c.json({ error: { code: 500, message: 'No email provider configured' } }, 500);
+    }
+    providerInfo = { source: resolved.source, type: resolved.provider.type };
+    const senderName = inbox?.sender_name || undefined;
 
     const mail = buildEmail(
-      'diag-test',
+      inboxSlug || 'diag-test',
       {
         name: 'Diagnostic Test',
         email: 'diag@hookforms.dev',
-        message: `This is a test email sent at ${new Date().toISOString()} to check that Gmail OAuth works.`,
+        message: `This is a test email sent at ${new Date().toISOString()} through the ${resolved.source} ${resolved.provider.type} provider.`,
       },
       '[HookForms Diag] Test Email',
-      'HookForms Diagnostic',
+      senderName,
     );
 
-    await provider.sendEmail(to, mail.subject, { html: mail.html, text: mail.text }, 'HookForms Diagnostic');
+    await resolved.provider.sendEmail(to, mail.subject, { html: mail.html, text: mail.text }, senderName);
 
-    return c.json({ data: { status: 'sent', to } });
+    return c.json({ data: { status: 'sent', to, provider: providerInfo } });
   } catch (err) {
     return c.json({
       error: {
         code: 500,
         message: 'Email send failed',
         detail: String(err),
+        provider: providerInfo ?? null,
       },
     }, 500);
   }
