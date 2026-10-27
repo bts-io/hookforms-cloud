@@ -130,7 +130,6 @@ app.post('/v1/diag/test-email', requireScope('admin'), async (c) => {
         message: `This is a test email sent at ${new Date().toISOString()} through the ${resolved.source} ${resolved.provider.type} provider.`,
       },
       '[HookForms Diag] Test Email',
-      senderName,
     );
 
     await resolved.provider.sendEmail(to, mail.subject, { html: mail.html, text: mail.text }, senderName);

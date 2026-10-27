@@ -83,7 +83,6 @@ describe('buildEmail', () => {
       'contact',
       { name: 'Sam <b>', email: 'sam@example.com', message: 'Hi\nthere' },
       '[contact] New submission from Sam',
-      'Acme',
     );
     expect(mail.subject).toBe('[contact] New submission from Sam');
     expect(mail.html.startsWith('<!DOCTYPE html>')).toBe(true);
@@ -96,7 +95,11 @@ describe('buildEmail', () => {
     expect(mail.text).toContain('New submission from Sam <b>');
     expect(mail.text).toContain('Message: Hi\nthere');
     expect(mail.text).toContain('Reply to Sam <b>: mailto:sam@example.com');
-    expect(mail.text).toContain('Delivered by Acme.');
+    // The footer is one line: why the reader got this email.
+    expect(mail.text.endsWith(
+      '\n--\nYou get this email because the inbox /hooks/contact sends its submissions here.\n',
+    )).toBe(true);
+    expect(`${mail.html}${mail.text}`).not.toContain('Delivered by');
     expect(mail.text).not.toMatch(/<(?!b>)[a-z][^>]*>/i);
     expect(`${mail.html}${mail.text}`).not.toMatch(/[–—]|&mdash;|&ndash;/);
   });

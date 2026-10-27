@@ -37,13 +37,12 @@ const PREHEADER_FILL = '&#847;&zwnj;&nbsp;'.repeat(30);
 
 /**
  * Build the notification email for a submission. `subject` carries the inbox's own prefix and
- * becomes the document title; `senderName` is the inbox's sender name.
+ * becomes the document title.
  */
 export function buildEmail(
   slug: string,
   body: Record<string, unknown>,
   subject: string,
-  senderName?: string,
 ): RenderedEmail {
   const skipKeys = new Set(['source', 'cf-turnstile-response']);
   const raw = rawOnlyText(body);
@@ -63,7 +62,6 @@ export function buildEmail(
   const preheader = name !== 'Unknown' ? `New submission from ${name}.` : 'A new submission arrived.';
   const intro = raw !== null ? 'A new submission was received:' : 'A new form submission was received:';
   const reason = `You get this email because the inbox /hooks/${slug} sends its submissions here.`;
-  const sentBy = `Delivered by ${senderName || 'HookForms'}.`;
 
   let content: string;
   if (raw !== null) {
@@ -122,8 +120,7 @@ ${content}
 ${button}
 </td></tr>
 <tr><td class="pad" style="padding:20px 32px 28px;border-top:1px solid ${RULE};">
-<p style="margin:0 0 6px;font-family:${FONT};font-size:13px;line-height:1.5;color:${MUTED};">${escape(reason)}</p>
-<p style="margin:0;font-family:${FONT};font-size:13px;line-height:1.5;color:${MUTED};">${escape(sentBy)}</p>
+<p style="margin:0;font-family:${FONT};font-size:13px;line-height:1.5;color:${MUTED};">${escape(reason)}</p>
 </td></tr>
 </table>
 <!--[if mso]></td></tr></table><![endif]-->
@@ -136,7 +133,7 @@ ${button}
   else if (rows.length) parts.push(rows.map((r) => `${r.label}: ${r.value}`).join('\n'));
   else parts.push('The submission had no fields.');
   if (email) parts.push(`Reply to ${name}: mailto:${email}`);
-  const text = `${parts.join('\n\n')}\n\n--\n${reason}\n${sentBy}\n`;
+  const text = `${parts.join('\n\n')}\n\n--\n${reason}\n`;
 
   return { subject, html, text };
 }

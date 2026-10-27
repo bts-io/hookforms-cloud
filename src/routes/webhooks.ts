@@ -195,7 +195,7 @@ publicWebhooks.all('/hooks/:slug', async (c) => {
         const prefix = inbox.email_subject_prefix || `[${slug}]`;
         const name = String(body.name || 'Unknown');
         const subjectDetail = name !== 'Unknown' ? `from ${name}` : 'New Submission';
-        const mail = buildEmail(slug, body, `${prefix} ${subjectDetail}`, inbox.sender_name ?? undefined);
+        const mail = buildEmail(slug, body, `${prefix} ${subjectDetail}`);
 
         const recipients = inbox.notify_email.split(',').map((e: string) => e.trim()).filter(Boolean);
 

@@ -174,7 +174,6 @@ export async function dispatchNotifications(
             context.slug,
             context.body,
             `${context.subjectPrefix} ${subjectDetail}`,
-            context.senderName,
           );
 
           // Queue email for each recipient (with inbox_id for provider resolution)
