@@ -4,17 +4,31 @@ import { requireScope, generateKey, hashKey } from '../middleware/auth';
 
 const auth = new Hono<{ Bindings: Env }>();
 
+const KNOWN_SCOPES = ['webhooks', 'admin'];
+
 auth.post('/keys', requireScope('admin'), async (c) => {
-  const body = await c.req.json<{ name: string; scopes?: string[] }>();
+  const body = await c.req.json<{ name: string; scopes?: unknown }>();
 
   if (!body.name) {
     return c.json({ error: { code: 400, message: 'name is required' } }, 400);
   }
 
+  const requested = body.scopes ?? [];
+  if (
+    !Array.isArray(requested) ||
+    !requested.every((s) => typeof s === 'string' && KNOWN_SCOPES.includes(s))
+  ) {
+    return c.json(
+      { error: { code: 400, message: `scopes must be an array of: ${KNOWN_SCOPES.join(', ')}` } },
+      400,
+    );
+  }
+  const scopeList = [...new Set(requested as string[])];
+
   const rawKey = generateKey();
   const keyHash = await hashKey(rawKey);
   const id = crypto.randomUUID();
-  const scopes = JSON.stringify(body.scopes || []);
+  const scopes = JSON.stringify(scopeList);
 
   await c.env.DB.prepare(
     'INSERT INTO api_keys (id, name, key_hash, key_prefix, scopes) VALUES (?, ?, ?, ?, ?)',
@@ -31,7 +45,7 @@ auth.post('/keys', requireScope('admin'), async (c) => {
       data: {
         id,
         name: body.name,
-        scopes: body.scopes || [],
+        scopes: scopeList,
         is_active: true,
         created_at: (dbKey as Record<string, unknown>)?.created_at,
         last_used_at: null,
