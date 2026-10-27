@@ -1,5 +1,6 @@
 import type { EmailProvider } from './base';
 import type { ResendProviderConfig } from '../types';
+import { sanitizeAddress, sanitizeHeaderValue } from './headers';
 
 /**
  * Resend email provider (https://resend.com).
@@ -22,8 +23,10 @@ export class ResendProvider implements EmailProvider {
     htmlBody: string,
     senderName?: string,
   ): Promise<void> {
-    const displayName = senderName || 'HookForms';
-    const from = `${displayName} <${this.fromEmail}>`;
+    // Resend parses "Name <email>" itself, so the name only loses control characters and the
+    // characters that would end it early.
+    const displayName = sanitizeHeaderValue(senderName || 'HookForms').replace(/[<>"]/g, '');
+    const from = `${displayName} <${sanitizeAddress(this.fromEmail)}>`;
 
     const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -33,8 +36,8 @@ export class ResendProvider implements EmailProvider {
       },
       body: JSON.stringify({
         from,
-        to: [to],
-        subject,
+        to: [sanitizeAddress(to)],
+        subject: sanitizeHeaderValue(subject),
         html: htmlBody,
       }),
     });

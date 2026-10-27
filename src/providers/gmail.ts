@@ -1,5 +1,6 @@
 import type { EmailProvider } from './base';
 import type { GmailProviderConfig } from '../types';
+import { encodeHeaderWord, formatMailbox, sanitizeAddress } from './headers';
 
 interface TokenResponse {
   access_token: string;
@@ -104,11 +105,12 @@ export class GmailProvider implements EmailProvider {
     const accessToken = await this.getAccessToken();
     const displayName = senderName || 'HookForms';
 
-    // Build RFC 2822 message
+    // Build RFC 2822 message. Every header value goes through the shared sanitizer so submitted
+    // text cannot add headers, and non-ASCII values are RFC 2047 encoded.
     const message = [
-      `From: ${displayName} <${this.senderEmail}>`,
-      `To: ${to}`,
-      `Subject: ${subject}`,
+      `From: ${formatMailbox(displayName, this.senderEmail)}`,
+      `To: ${sanitizeAddress(to)}`,
+      `Subject: ${encodeHeaderWord(subject)}`,
       'MIME-Version: 1.0',
       'Content-Type: text/html; charset=UTF-8',
       '',

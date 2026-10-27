@@ -1,5 +1,6 @@
 import type { EmailProvider } from './base';
 import type { SendGridProviderConfig } from '../types';
+import { sanitizeAddress, sanitizeHeaderValue } from './headers';
 
 /**
  * SendGrid email provider (https://sendgrid.com).
@@ -22,7 +23,7 @@ export class SendGridProvider implements EmailProvider {
     htmlBody: string,
     senderName?: string,
   ): Promise<void> {
-    const displayName = senderName || 'HookForms';
+    const displayName = sanitizeHeaderValue(senderName || 'HookForms');
 
     const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
@@ -31,9 +32,9 @@ export class SendGridProvider implements EmailProvider {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: this.fromEmail, name: displayName },
-        subject,
+        personalizations: [{ to: [{ email: sanitizeAddress(to) }] }],
+        from: { email: sanitizeAddress(this.fromEmail), name: displayName },
+        subject: sanitizeHeaderValue(subject),
         content: [{ type: 'text/html', value: htmlBody }],
       }),
     });
