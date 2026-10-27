@@ -5,8 +5,62 @@ import { verifyTurnstile } from '../services/turnstile';
 import { buildEmailHtml } from '../services/email-template';
 import { dispatchNotifications, takeEmailSlot } from '../channels/dispatcher';
 import { formatValue } from '../services/format-value';
+import { buildDiscordPayload } from '../channels/discord';
+import { checkOutboundUrl } from '../channels/validate';
 
 const webhooks = new Hono<{ Bindings: Env }>();
+
+/**
+ * Build the request for an inbox's legacy forward_url. Discord and Slack URLs get a formatted
+ * message (Discord through the same builder as Discord channels: empty values skipped, at most
+ * 25 fields); any other URL gets the raw body with the original method, and GET or HEAD forwards
+ * carry no body, since fetch refuses one there.
+ */
+export function buildLegacyForward(
+  inbox: Pick<Inbox, 'forward_url' | 'email_subject_prefix' | 'sender_name'>,
+  slug: string,
+  body: Record<string, unknown>,
+  method: string,
+): { method: string; headers: Record<string, string>; body?: string } {
+  const url = inbox.forward_url || '';
+  const subjectPrefix = inbox.email_subject_prefix || `[${slug}]`;
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Forwarded-From': `hookforms/hooks/${slug}`,
+  };
+
+  if (url.includes('discord.com/api/webhooks')) {
+    const payload = buildDiscordPayload(
+      { webhook_url: url },
+      { slug, subjectPrefix, senderName: inbox.sender_name || 'HookForms', body },
+    );
+    return { method: 'POST', headers, body: payload.body };
+  }
+
+  if (url.includes('hooks.slack.com/')) {
+    const lines = Object.entries(body)
+      .filter(([k, v]) => v && k !== 'cf-turnstile-response')
+      .map(([k, v]) => `*${k.replace(/_/g, ' ')}:* ${formatValue(v)}`);
+    return {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        text: `${subjectPrefix} New Submission`,
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: lines.join('\n') } }],
+      }),
+    };
+  }
+
+  const m = method.toUpperCase();
+  if (m === 'GET' || m === 'HEAD') return { method: m, headers };
+  return { method: m, headers, body: JSON.stringify(body) };
+}
+
+/** forward_url may be empty (no forward) or a public http(s) URL. */
+function forwardUrlError(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  return checkOutboundUrl(value, 'forward_url');
+}
 
 // ---------------------------------------------------------------------------
 // Public: receive webhooks
@@ -123,58 +177,8 @@ publicWebhooks.all('/hooks/:slug', async (c) => {
     } else {
       // Legacy: forward_url + notify_email (backward compat for inboxes without channel rows)
       if (inbox.forward_url) {
-        const isDiscord = inbox.forward_url.includes('discord.com/api/webhooks');
-        const isSlack = inbox.forward_url.includes('hooks.slack.com/');
-
-        let forwardBody: string;
-        let forwardMethod = 'POST';
-
-        if (isDiscord) {
-          const fields = Object.entries(body)
-            .filter(([k, v]) => v && k !== 'cf-turnstile-response')
-            .map(([k, v]) => {
-              const formatted = formatValue(v, 1024);
-              return {
-                name: k.replace(/_/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase()),
-                value: formatted.substring(0, 1024),
-                inline: formatted.length < 50,
-              };
-            });
-          forwardBody = JSON.stringify({
-            embeds: [{
-              title: `${inbox.email_subject_prefix || `[${slug}]`} New Submission`,
-              color: 0xd4a843,
-              fields,
-              footer: { text: `hookforms/hooks/${slug}` },
-              timestamp: new Date().toISOString(),
-            }],
-          });
-        } else if (isSlack) {
-          const lines = Object.entries(body)
-            .filter(([k, v]) => v && k !== 'cf-turnstile-response')
-            .map(([k, v]) => `*${k.replace(/_/g, ' ')}:* ${formatValue(v)}`);
-          forwardBody = JSON.stringify({
-            text: `${inbox.email_subject_prefix || `[${slug}]`} New Submission`,
-            blocks: [{
-              type: 'section',
-              text: { type: 'mrkdwn', text: lines.join('\n') },
-            }],
-          });
-        } else {
-          forwardBody = JSON.stringify(body);
-          forwardMethod = c.req.method;
-        }
-
-        c.executionCtx.waitUntil(
-          fetch(inbox.forward_url, {
-            method: forwardMethod,
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Forwarded-From': `hookforms/hooks/${slug}`,
-            },
-            body: forwardBody,
-          }).catch(() => {}),
-        );
+        const forward = buildLegacyForward(inbox, slug, body, c.req.method);
+        c.executionCtx.waitUntil(fetch(inbox.forward_url, forward).catch(() => {}));
       }
 
       if (inbox.notify_email && !(await takeEmailSlot(c.env, inbox.id))) {
@@ -286,6 +290,11 @@ webhooks.post('/inboxes', requireScope('webhooks'), async (c) => {
     return c.json({ error: { code: 400, message: 'slug is required' } }, 400);
   }
 
+  const forwardErr = forwardUrlError(body.forward_url);
+  if (forwardErr) {
+    return c.json({ error: { code: 400, message: forwardErr } }, 400);
+  }
+
   const id = crypto.randomUUID();
   await c.env.DB.prepare(
     `INSERT INTO webhook_inboxes (id, slug, description, forward_url, notify_email, email_subject_prefix, sender_name, turnstile_secret)
@@ -329,6 +338,13 @@ webhooks.patch('/inboxes/:slug', requireScope('webhooks'), async (c) => {
 
   if (!inbox) {
     return c.json({ error: { code: 404, message: 'Inbox not found' } }, 404);
+  }
+
+  if ('forward_url' in body) {
+    const forwardErr = forwardUrlError(body.forward_url);
+    if (forwardErr) {
+      return c.json({ error: { code: 400, message: forwardErr } }, 400);
+    }
   }
 
   const allowed = [

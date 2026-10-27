@@ -121,42 +121,113 @@ function requireFields(config: Record<string, unknown>, fields: string[]): Valid
 }
 
 /**
- * Check if a URL points to a blocked destination (SSRF protection).
+ * Parse an IPv4 host the way URL parsers and resolvers do: one to four parts, each decimal,
+ * hex (0x) or octal (leading 0), the last part filling the remaining bytes. Returns the
+ * address as a number, or null when the host is not an IPv4 literal.
  */
-function isBlockedUrl(urlStr: string): boolean {
+function parseIPv4(host: string): number | null {
+  const parts = host.split('.');
+  if (parts.length > 4 || parts.some((p) => p === '')) return null;
+  const nums: number[] = [];
+  for (const p of parts) {
+    let n: number;
+    if (/^0x[0-9a-f]*$/i.test(p)) n = p.length === 2 ? 0 : parseInt(p.slice(2), 16);
+    else if (/^0[0-7]+$/.test(p)) n = parseInt(p.slice(1), 8);
+    else if (/^(0|[1-9][0-9]*)$/.test(p)) n = parseInt(p, 10);
+    else return null;
+    nums.push(n);
+  }
+  const last = nums.pop()!;
+  if (nums.some((n) => n > 255) || last >= 256 ** (4 - nums.length)) return null;
+  let addr = last;
+  nums.forEach((n, i) => (addr += n * 256 ** (3 - i)));
+  return addr;
+}
+
+function inV4(addr: number, base: string, bits: number): boolean {
+  const b = base.split('.').reduce((acc, o) => acc * 256 + Number(o), 0);
+  const size = 2 ** (32 - bits);
+  return Math.floor(addr / size) === Math.floor(b / size);
+}
+
+function isBlockedV4(addr: number): boolean {
+  return (
+    inV4(addr, '0.0.0.0', 8) ||
+    inV4(addr, '10.0.0.0', 8) ||
+    inV4(addr, '100.64.0.0', 10) ||
+    inV4(addr, '127.0.0.0', 8) ||
+    inV4(addr, '169.254.0.0', 16) ||
+    inV4(addr, '172.16.0.0', 12) ||
+    inV4(addr, '192.168.0.0', 16)
+  );
+}
+
+/** Expand an IPv6 literal (no brackets) into eight 16-bit groups, or null if it is not one. */
+function parseIPv6(host: string): number[] | null {
+  let h = host.split('%')[0];
+  // A trailing dotted IPv4 part becomes two groups.
+  const v4 = h.match(/^(.*:)([^:]+\.[^:]+)$/);
+  if (v4) {
+    const a = parseIPv4(v4[2]);
+    if (a === null) return null;
+    h = `${v4[1]}${Math.floor(a / 65536).toString(16)}:${(a % 65536).toString(16)}`;
+  }
+  const halves = h.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const fill = 8 - head.length - tail.length;
+  if (halves.length === 1 ? fill !== 0 : fill < 1) return null;
+  const groups = [...head, ...Array(halves.length === 2 ? fill : 0).fill('0'), ...tail];
+  if (groups.some((g) => !/^[0-9a-f]{1,4}$/i.test(g))) return null;
+  return groups.map((g) => parseInt(g, 16));
+}
+
+function isBlockedV6(g: number[]): boolean {
+  const zeroTo = (n: number) => g.slice(0, n).every((x) => x === 0);
+  if (zeroTo(7) && (g[7] === 0 || g[7] === 1)) return true; // :: and ::1
+  if ((g[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
+  if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link local
+  // IPv4-mapped (::ffff:a.b.c.d) and IPv4-compatible (::a.b.c.d) addresses carry an IPv4 target.
+  if (zeroTo(5) && (g[5] === 0xffff || g[5] === 0)) {
+    return isBlockedV4(g[6] * 65536 + g[7]);
+  }
+  return false;
+}
+
+/**
+ * Check if a URL points to a blocked destination (SSRF protection): loopback, private,
+ * link-local, carrier-grade NAT and metadata addresses, in any IPv4 or IPv6 spelling.
+ */
+export function isBlockedUrl(urlStr: string): boolean {
+  let hostname: string;
   try {
-    const url = new URL(urlStr);
-    const hostname = url.hostname.toLowerCase();
-
-    // Block localhost variants
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') {
-      return true;
-    }
-
-    // Block common metadata endpoints
-    if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') {
-      return true;
-    }
-
-    // Block private IP ranges (simple pattern match)
-    if (/^10\./.test(hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) || /^192\.168\./.test(hostname)) {
-      return true;
-    }
-
-    // Block 0.0.0.0
-    if (hostname === '0.0.0.0') {
-      return true;
-    }
-
-    // Block link-local
-    if (/^169\.254\./.test(hostname) || /^fe80:/i.test(hostname)) {
-      return true;
-    }
-
-    return false;
+    hostname = new URL(urlStr).hostname.toLowerCase().replace(/\.$/, '');
   } catch {
     return true;
   }
+  if (!hostname) return true;
+
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) return true;
+  if (hostname === 'metadata.google.internal') return true;
+
+  if (hostname.startsWith('[') && hostname.endsWith(']')) {
+    const groups = parseIPv6(hostname.slice(1, -1));
+    return groups === null || isBlockedV6(groups);
+  }
+
+  const v4 = parseIPv4(hostname);
+  if (v4 !== null) return isBlockedV4(v4);
+  return false;
+}
+
+/**
+ * Check an outbound URL a user configures (channel or inbox forward): http(s) only and not
+ * a blocked destination. Returns an error message, or null when the URL is fine.
+ */
+export function checkOutboundUrl(value: unknown, fieldName: string): string | null {
+  const err = validateUrl(value, fieldName);
+  return err ? err.error || `${fieldName} is invalid` : null;
 }
 
 function validateUrl(value: unknown, fieldName: string): ValidationResult | null {
