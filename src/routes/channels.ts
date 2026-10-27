@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env, Inbox, NotificationChannel, ChannelType, EmailProviderType } from '../types';
-import { requireScope } from '../middleware/auth';
+import { keyHasScope, requireScope } from '../middleware/auth';
 import { detectChannelType } from '../channels/detect';
 import {
   normalizeChannelConfig,
@@ -287,6 +287,14 @@ channels.put('/config/email-provider', requireScope('webhooks'), async (c) => {
     return c.json({ error: { code: 400, message: 'type and config are required' } }, 400);
   }
 
+  // The global provider sends for every inbox without its own, so only admin keys may set it.
+  if (!body.inbox && !keyHasScope(c, 'admin')) {
+    return c.json(
+      { error: { code: 403, message: 'Changing the global email provider needs an admin key' } },
+      403,
+    );
+  }
+
   const validTypes = ['gmail', 'resend', 'sendgrid'];
   if (!validTypes.includes(body.type)) {
     return c.json({ error: { code: 400, message: `Invalid provider type: ${body.type}` } }, 400);
@@ -337,6 +345,13 @@ channels.put('/config/email-provider', requireScope('webhooks'), async (c) => {
 
 channels.delete('/config/email-provider', requireScope('webhooks'), async (c) => {
   const inboxSlug = c.req.query('inbox');
+
+  if (!inboxSlug && !keyHasScope(c, 'admin')) {
+    return c.json(
+      { error: { code: 403, message: 'Changing the global email provider needs an admin key' } },
+      403,
+    );
+  }
 
   if (inboxSlug) {
     const inbox = await c.env.DB.prepare('SELECT id FROM webhook_inboxes WHERE slug = ?')

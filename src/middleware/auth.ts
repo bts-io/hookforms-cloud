@@ -109,3 +109,18 @@ export function requireScope(scope: string) {
     return next();
   };
 }
+
+/**
+ * True when the key that passed requireScope also holds `scope` (admin holds every scope).
+ * For routes where one action needs more than the route's own scope.
+ */
+export function keyHasScope(c: Context<{ Bindings: Env }>, scope: string): boolean {
+  const key = c.get('apiKey' as never) as ApiKey | undefined;
+  if (!key) return false;
+  try {
+    const scopes: string[] = JSON.parse(key.scopes);
+    return scopes.includes(scope) || scopes.includes('admin');
+  } catch {
+    return false;
+  }
+}
