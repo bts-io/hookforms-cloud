@@ -22,8 +22,12 @@ function redactConfig(config: Record<string, unknown>): Record<string, unknown> 
   ]);
   const redacted: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(config)) {
-    if (sensitiveKeys.has(key) && typeof value === 'string' && value.length > 8) {
-      redacted[key] = value.slice(0, 4) + '***' + value.slice(-4);
+    if (sensitiveKeys.has(key) && typeof value === 'string') {
+      // Short values would be shown almost whole by the prefix and suffix, so hide them fully.
+      redacted[key] = value.length > 12 ? value.slice(0, 4) + '***' + value.slice(-4) : '***';
+    } else if (key === 'custom_headers' && value && typeof value === 'object') {
+      // Header names stay visible; their values are often credentials.
+      redacted[key] = Object.fromEntries(Object.keys(value).map((name) => [name, '***']));
     } else {
       redacted[key] = value;
     }
@@ -326,7 +330,7 @@ channels.put('/config/email-provider', requireScope('webhooks'), async (c) => {
   return c.json({
     data: {
       ...provider,
-      config: provider ? JSON.parse(provider.config as string) : null,
+      config: provider ? redactConfig(JSON.parse(provider.config as string)) : null,
     },
   });
 });
