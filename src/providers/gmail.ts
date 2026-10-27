@@ -1,5 +1,6 @@
 import type { EmailBody, EmailProvider } from './base';
 import type { GmailProviderConfig } from '../types';
+import { parseMailbox } from './headers';
 import { buildMimeMessage } from './mime';
 
 interface TokenResponse {
@@ -30,12 +31,16 @@ export class GmailProvider implements EmailProvider {
   private clientSecret: string;
   private refreshToken: string;
   private senderEmail: string;
+  private fromName?: string;
 
   constructor(config: GmailProviderConfig) {
     this.clientId = config.client_id;
     this.clientSecret = config.client_secret;
     this.refreshToken = config.refresh_token;
-    this.senderEmail = config.sender_email;
+    // Rows saved before senders were normalized may still hold "Name <address>".
+    const parsed = parseMailbox(config.sender_email);
+    this.senderEmail = parsed?.email ?? config.sender_email;
+    this.fromName = config.from_name || parsed?.name;
   }
 
   /**
@@ -103,7 +108,7 @@ export class GmailProvider implements EmailProvider {
     senderName?: string,
   ): Promise<void> {
     const accessToken = await this.getAccessToken();
-    const displayName = senderName || 'HookForms';
+    const displayName = senderName || this.fromName || 'HookForms';
 
     // multipart/alternative message (text + HTML). Every header value goes through the shared
     // sanitizer so submitted text cannot add headers, and non-ASCII values are RFC 2047 encoded.

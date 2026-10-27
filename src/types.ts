@@ -123,16 +123,22 @@ export interface GmailProviderConfig {
   client_secret: string;
   refresh_token: string;
   sender_email: string;
+  // Display name for the From header when the inbox sets none.
+  from_name?: string;
 }
 
 export interface ResendProviderConfig {
   api_key: string;
   from_email: string;
+  // Display name for the From header when the inbox sets none.
+  from_name?: string;
 }
 
 export interface SendGridProviderConfig {
   api_key: string;
   from_email: string;
+  // Display name for the From header when the inbox sets none.
+  from_name?: string;
 }
 
 export interface SmtpProviderConfig {

@@ -4,6 +4,7 @@ import { keyHasScope, requireScope } from '../middleware/auth';
 import { detectChannelType } from '../channels/detect';
 import {
   normalizeChannelConfig,
+  normalizeProviderConfig,
   validateChannelConfig,
   validateProviderConfig,
   suggestChannelType,
@@ -305,6 +306,10 @@ channels.put('/config/email-provider', requireScope('webhooks'), async (c) => {
   if (!providerValidation.valid) {
     return c.json({ error: { code: 400, message: providerValidation.error } }, 400);
   }
+  const normalized = normalizeProviderConfig(body.type as EmailProviderType, body.config);
+  if (!normalized.valid) {
+    return c.json({ error: { code: 400, message: normalized.error } }, 400);
+  }
 
   let inboxId: string | null = null;
   if (body.inbox) {
@@ -328,7 +333,7 @@ channels.put('/config/email-provider', requireScope('webhooks'), async (c) => {
   await c.env.DB.prepare(
     'INSERT INTO email_providers (id, inbox_id, type, config, is_active) VALUES (?, ?, ?, ?, 1)',
   )
-    .bind(id, inboxId, body.type, JSON.stringify(body.config))
+    .bind(id, inboxId, body.type, JSON.stringify(normalized.config))
     .run();
 
   const provider = await c.env.DB.prepare('SELECT * FROM email_providers WHERE id = ?')

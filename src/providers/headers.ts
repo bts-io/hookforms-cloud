@@ -68,3 +68,22 @@ export function formatMailbox(name: string, email: string): string {
   }
   return `${cleanName} <${cleanEmail}>`;
 }
+
+/** A plain addr-spec: local part, "@" and a dotted domain, with no spaces or mailbox syntax. */
+const ADDRESS_RE = /^[^\s@<>()[\]",;:\\]+@[^\s@<>()[\]",;:\\.]+(\.[^\s@<>()[\]",;:\\.]+)+$/;
+
+/**
+ * Parse a sender given either as a bare address (`forms@example.com`) or as a mailbox with a
+ * display name (`Forms <forms@example.com>`, `"Acme, Forms" <forms@example.com>`). Returns the
+ * bare address and the name, if any, or null when what is left is not a valid address.
+ */
+export function parseMailbox(value: unknown): { email: string; name?: string } | null {
+  if (typeof value !== 'string') return null;
+  const clean = sanitizeHeaderValue(value);
+  const angled = /^(.*?)\s*<([^<>]*)>$/.exec(clean);
+  const email = (angled ? angled[2] : clean).trim();
+  if (!ADDRESS_RE.test(email)) return null;
+  let name = angled ? angled[1].trim() : '';
+  if (/^".*"$/.test(name)) name = name.slice(1, -1).replace(/\\(.)/g, '$1').trim();
+  return name ? { email, name } : { email };
+}

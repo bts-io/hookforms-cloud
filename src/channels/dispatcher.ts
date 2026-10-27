@@ -185,7 +185,8 @@ export async function dispatchNotifications(
                 subject: mail.subject,
                 body: mail.html,
                 text: mail.text,
-                sender_name: context.senderName,
+                // Only the inbox's own name: without one the provider's from_name applies.
+                sender_name: inbox.sender_name || undefined,
                 inbox_id: inbox.id,
               }).catch((err) => console.error(`Email queue send failed for ${to} on channel ${channel.id}:`, err)),
             );

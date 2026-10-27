@@ -1,6 +1,6 @@
 import type { EmailBody, EmailProvider } from './base';
 import type { SendGridProviderConfig } from '../types';
-import { sanitizeAddress, sanitizeHeaderValue } from './headers';
+import { parseMailbox, sanitizeAddress, sanitizeHeaderValue } from './headers';
 
 /**
  * SendGrid email provider (https://sendgrid.com).
@@ -11,10 +11,14 @@ export class SendGridProvider implements EmailProvider {
 
   private apiKey: string;
   private fromEmail: string;
+  private fromName?: string;
 
   constructor(config: SendGridProviderConfig) {
     this.apiKey = config.api_key;
-    this.fromEmail = config.from_email;
+    // Rows saved before senders were normalized may still hold "Name <address>".
+    const parsed = parseMailbox(config.from_email);
+    this.fromEmail = parsed?.email ?? config.from_email;
+    this.fromName = config.from_name || parsed?.name;
   }
 
   async sendEmail(
@@ -23,7 +27,7 @@ export class SendGridProvider implements EmailProvider {
     body: EmailBody,
     senderName?: string,
   ): Promise<void> {
-    const displayName = sanitizeHeaderValue(senderName || 'HookForms');
+    const displayName = sanitizeHeaderValue(senderName || this.fromName || 'HookForms');
 
     const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',

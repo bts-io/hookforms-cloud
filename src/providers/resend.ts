@@ -1,6 +1,6 @@
 import type { EmailBody, EmailProvider } from './base';
 import type { ResendProviderConfig } from '../types';
-import { sanitizeAddress, sanitizeHeaderValue } from './headers';
+import { parseMailbox, sanitizeAddress, sanitizeHeaderValue } from './headers';
 
 /**
  * Resend email provider (https://resend.com).
@@ -11,10 +11,14 @@ export class ResendProvider implements EmailProvider {
 
   private apiKey: string;
   private fromEmail: string;
+  private fromName?: string;
 
   constructor(config: ResendProviderConfig) {
     this.apiKey = config.api_key;
-    this.fromEmail = config.from_email;
+    // Rows saved before senders were normalized may still hold "Name <address>".
+    const parsed = parseMailbox(config.from_email);
+    this.fromEmail = parsed?.email ?? config.from_email;
+    this.fromName = config.from_name || parsed?.name;
   }
 
   async sendEmail(
@@ -24,9 +28,10 @@ export class ResendProvider implements EmailProvider {
     senderName?: string,
   ): Promise<void> {
     // Resend parses "Name <email>" itself, so the name only loses control characters and the
-    // characters that would end it early.
-    const displayName = sanitizeHeaderValue(senderName || 'HookForms').replace(/[<>"]/g, '');
-    const from = `${displayName} <${sanitizeAddress(this.fromEmail)}>`;
+    // characters that would end it early. A name with commas or other specials is quoted.
+    const displayName = sanitizeHeaderValue(senderName || this.fromName || 'HookForms').replace(/[<>"]/g, '');
+    const name = /[()[\]:;@\\,.]/.test(displayName) ? `"${displayName.replace(/\\/g, '\\\\')}"` : displayName;
+    const from = `${name} <${sanitizeAddress(this.fromEmail)}>`;
 
     const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',

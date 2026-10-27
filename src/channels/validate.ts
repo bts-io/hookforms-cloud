@@ -1,4 +1,5 @@
 import type { ChannelType, EmailProviderType } from '../types';
+import { parseMailbox } from '../providers/headers';
 
 interface ValidationResult {
   valid: boolean;
@@ -72,6 +73,35 @@ export function validateProviderConfig(
     default:
       return { valid: false, error: `Unknown provider type: ${type}` };
   }
+}
+
+/** The config key that holds the sender address for each provider type. */
+function senderKey(type: EmailProviderType): 'sender_email' | 'from_email' {
+  return type === 'gmail' ? 'sender_email' : 'from_email';
+}
+
+/**
+ * Turn a provider's sender into a bare address. The providers add their own display name, so
+ * `Name <address>` would otherwise reach them as an invalid sender (Resend answers 422). A name
+ * given that way is kept as `from_name` unless the config already sets one.
+ */
+export function normalizeProviderConfig(
+  type: EmailProviderType,
+  config: Record<string, unknown>,
+): { valid: true; config: Record<string, unknown> } | { valid: false; error: string } {
+  const key = senderKey(type);
+  const parsed = parseMailbox(config[key]);
+  if (!parsed) {
+    return {
+      valid: false,
+      error: `${key} must be an email address, either "you@example.com" or "Name <you@example.com>"`,
+    };
+  }
+  const out: Record<string, unknown> = { ...config, [key]: parsed.email };
+  if (parsed.name && !(typeof out.from_name === 'string' && out.from_name.trim())) {
+    out.from_name = parsed.name;
+  }
+  return { valid: true, config: out };
 }
 
 /**
