@@ -64,6 +64,12 @@
     "crons": ["0 3 * * *"]
   }
 
+  // Optional: Workers Logs keeps console output (send failures, dead-lettered jobs) in the
+  // dashboard. Add a comma after "triggers" above and uncomment to turn it on.
+  // "observability": {
+  //   "enabled": true
+  // }
+
   // Required secrets (set via wrangler secret put):
   // ADMIN_API_KEY        — master admin key
   // GMAIL_CLIENT_ID      — Google OAuth client ID
