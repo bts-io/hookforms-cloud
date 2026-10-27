@@ -26,7 +26,8 @@
     }
   ],
 
-  // R2 bucket for Gmail OAuth token persistence
+  // R2 bucket bound as STORAGE. Nothing reads or writes it yet: Gmail access tokens are cached
+  // in memory per isolate and the refresh token is a secret (see below).
   "r2_buckets": [
     {
       "binding": "STORAGE",
