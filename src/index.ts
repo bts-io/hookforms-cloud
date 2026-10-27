@@ -178,15 +178,12 @@ export default {
 
   // Scheduled: cleanup old events (daily at 3am UTC)
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
-
+    // received_at is datetime('now') text ("YYYY-MM-DD HH:MM:SS"), so the cutoff is computed
+    // in SQL in the same format. An ISO string ("...T...Z") compares wrong within the cutoff day.
     try {
       const result = await env.DB.prepare(
-        'DELETE FROM webhook_events WHERE received_at < ?',
-      )
-        .bind(cutoff.toISOString())
-        .run();
+        "DELETE FROM webhook_events WHERE received_at < datetime('now', '-30 days')",
+      ).run();
 
       console.log(`Cleaned up ${result.meta.changes} old webhook events`);
     } catch (err) {
