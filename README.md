@@ -191,8 +191,8 @@ Use the `gmail_auth.py` script from the [self-hosted repo](https://github.com/bt
 - **SSRF blocklist** -- blocks private IPs, localhost, link-local addresses, and cloud metadata endpoints on all outbound channel requests.
 - **Secret redaction** -- channel configs and provider credentials are masked in API read responses.
 - **Scoped API keys** -- fine-grained access control with `webhooks` and `admin` scopes.
-- **Rate limiting** -- KV-backed per-IP sliding window (100 req/60s).
-- **Email rate limiting** -- 10 emails per 10 minutes per inbox to prevent quota abuse.
+- **Rate limiting** -- KV-backed per-IP fixed window (100 req per minute).
+- **Email rate limiting** -- email goes out for at most 10 submissions per inbox per 10-minute window, channels and notify_email alike.
 
 ## API Reference
 
