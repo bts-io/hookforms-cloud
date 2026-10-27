@@ -9,12 +9,12 @@
 
 <p align="center">
   <a href="https://hookforms-docs.h1n054ur.dev">Docs</a> &middot;
-  <a href="https://github.com/h1n054ur/hookforms">Self-Hosted Version</a> &middot;
+  <a href="https://github.com/bts-io/hookforms">Self-Hosted Version</a> &middot;
   <a href="https://hookforms-docs.h1n054ur.dev/getting-started/cloudflare-workers/">Quick Start Guide</a>
 </p>
 
 <p align="center">
-  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/h1n054ur/hookforms-cloud">
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/bts-io/hookforms-cloud">
     <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare">
   </a>
 </p>
@@ -25,7 +25,7 @@
 HTML Form  -->  POST /hooks/your-inbox  -->  Discord, Slack, Email, Telegram, ...
 ```
 
-> This is the Cloudflare-native version of [hookforms](https://github.com/h1n054ur/hookforms) (the self-hosted Docker Compose version). Same API surface, same features, zero infrastructure to manage.
+> This is the Cloudflare-native version of [hookforms](https://github.com/bts-io/hookforms) (the self-hosted Docker Compose version). Same API surface, same features, zero infrastructure to manage.
 
 ## Features
 
@@ -79,7 +79,7 @@ bunx wrangler d1 execute hookforms-db --remote --file=migrations/0002_notificati
 ### Manual CLI Setup
 
 ```bash
-git clone https://github.com/h1n054ur/hookforms-cloud.git
+git clone https://github.com/bts-io/hookforms-cloud.git
 cd hookforms-cloud
 bun install
 
@@ -184,7 +184,7 @@ bunx wrangler secret put GMAIL_REFRESH_TOKEN
 bunx wrangler secret put GMAIL_SENDER_EMAIL
 ```
 
-Use the `gmail_auth.py` script from the [self-hosted repo](https://github.com/h1n054ur/hookforms) to obtain your OAuth credentials.
+Use the `gmail_auth.py` script from the [self-hosted repo](https://github.com/bts-io/hookforms) to obtain your OAuth credentials.
 
 ## Security
 
