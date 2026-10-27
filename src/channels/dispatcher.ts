@@ -59,8 +59,9 @@ export async function dispatchNotifications(
       let channelType = channel.type;
 
       // Auto-detect if type is 'webhook'
-      if (channelType === 'webhook' && config.url) {
-        channelType = detectChannelType(config.url);
+      const configUrl = config.url || config.webhook_url;
+      if (channelType === 'webhook' && configUrl) {
+        channelType = detectChannelType(configUrl);
       }
 
       // Route to appropriate adapter

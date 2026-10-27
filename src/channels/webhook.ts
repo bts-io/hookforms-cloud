@@ -28,7 +28,7 @@ export function buildWebhookPayload(
 
   return {
     method: 'POST',
-    url: config.url,
+    url: config.url || (config.webhook_url as string),
     headers,
     body: JSON.stringify(filteredBody),
   };

@@ -54,7 +54,7 @@ export function buildTeamsPayload(
 
   return {
     method: 'POST',
-    url: config.webhook_url,
+    url: config.webhook_url || (config.url as string),
     headers: {
       'Content-Type': 'application/json',
     },

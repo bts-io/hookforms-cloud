@@ -2,7 +2,12 @@ import { Hono } from 'hono';
 import type { Env, Inbox, NotificationChannel, ChannelType, EmailProviderType } from '../types';
 import { requireScope } from '../middleware/auth';
 import { detectChannelType } from '../channels/detect';
-import { validateChannelConfig, validateProviderConfig, suggestChannelType } from '../channels/validate';
+import {
+  normalizeChannelConfig,
+  validateChannelConfig,
+  validateProviderConfig,
+  suggestChannelType,
+} from '../channels/validate';
 
 const channels = new Hono<{ Bindings: Env }>();
 
@@ -75,12 +80,14 @@ channels.post('/inboxes/:slug/channels', requireScope('webhooks'), async (c) => 
     return c.json({ error: { code: 400, message: validation.error } }, 400);
   }
 
+  const config = normalizeChannelConfig(channelType, body.config);
+
   const id = crypto.randomUUID();
   await c.env.DB.prepare(
     `INSERT INTO notification_channels (id, inbox_id, type, label, config, is_active)
      VALUES (?, ?, ?, ?, ?, 1)`,
   )
-    .bind(id, inbox.id, channelType, body.label || null, JSON.stringify(body.config))
+    .bind(id, inbox.id, channelType, body.label || null, JSON.stringify(config))
     .run();
 
   const channel = await c.env.DB.prepare('SELECT * FROM notification_channels WHERE id = ?')
@@ -148,8 +155,9 @@ channels.patch('/inboxes/:slug/channels/:channelId', requireScope('webhooks'), a
   for (const field of allowed) {
     if (field in body) {
       if (field === 'config') {
+        const type = ((body.type as ChannelType | undefined) ?? existing.type) as ChannelType;
         updates.push('config = ?');
-        values.push(JSON.stringify(body.config));
+        values.push(JSON.stringify(normalizeChannelConfig(type, body.config as Record<string, unknown>)));
       } else if (field === 'type') {
         const newType = body.type as string;
         if (!VALID_CHANNEL_TYPES.includes(newType as ChannelType)) {

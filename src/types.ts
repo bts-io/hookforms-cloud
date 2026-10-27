@@ -77,17 +77,21 @@ export interface EmailProviderRecord {
   created_at: string;
 }
 
-// Parsed config shapes for each channel type
+// Parsed config shapes for each channel type. New rows are saved with the key the sender reads
+// (see normalizeChannelConfig); `url` / `webhook_url` cover rows saved before that.
 export interface DiscordChannelConfig {
   webhook_url: string;
+  url?: string;
 }
 
 export interface SlackChannelConfig {
   webhook_url: string;
+  url?: string;
 }
 
 export interface TeamsChannelConfig {
   webhook_url: string;
+  url?: string;
 }
 
 export interface TelegramChannelConfig {
@@ -102,6 +106,7 @@ export interface NtfyChannelConfig {
 
 export interface WebhookChannelConfig {
   url: string;
+  webhook_url?: string;
   custom_headers?: Record<string, string>;
 }
 

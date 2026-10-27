@@ -34,6 +34,26 @@ export function validateChannelConfig(
 }
 
 /**
+ * Store the URL under the key the sender for this type reads: `webhook_url` for Discord,
+ * Slack and Teams, `url` for generic webhooks. Validation accepts either key, so a config
+ * saved with the other one would otherwise reach a sender that cannot find its URL.
+ */
+export function normalizeChannelConfig(
+  type: ChannelType,
+  config: Record<string, unknown>,
+): Record<string, unknown> {
+  const out = { ...config };
+  if (type === 'discord' || type === 'slack' || type === 'teams') {
+    if (!out.webhook_url && out.url) out.webhook_url = out.url;
+    delete out.url;
+  } else if (type === 'webhook') {
+    if (!out.url && out.webhook_url) out.url = out.webhook_url;
+    delete out.webhook_url;
+  }
+  return out;
+}
+
+/**
  * Validate email provider config for a given provider type.
  */
 export function validateProviderConfig(
