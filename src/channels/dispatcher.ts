@@ -29,12 +29,14 @@ const EMAIL_WINDOW_SECONDS = 600;
  * email channels and the legacy notify_email field. Returns false when the budget is spent.
  */
 export async function takeEmailSlot(env: Env, inboxId: string): Promise<boolean> {
-  const rateKey = `channel_email_rate:${inboxId}`;
+  // Fixed window: the window number is in the key, the TTL just cleans up after it.
+  const window = Math.floor(Date.now() / 1000 / EMAIL_WINDOW_SECONDS);
+  const rateKey = `channel_email_rate:${inboxId}:${window}`;
   try {
     const current = await env.RATE_LIMIT.get(rateKey);
     const count = current ? parseInt(current, 10) : 0;
     if (count >= EMAIL_LIMIT) return false;
-    await env.RATE_LIMIT.put(rateKey, String(count + 1), { expirationTtl: EMAIL_WINDOW_SECONDS });
+    await env.RATE_LIMIT.put(rateKey, String(count + 1), { expirationTtl: EMAIL_WINDOW_SECONDS + 60 });
   } catch {
     // KV unavailable: allow through
   }

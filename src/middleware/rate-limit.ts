@@ -13,7 +13,8 @@ function getClientIp(c: Context): string {
 }
 
 /**
- * Rate limiter using Cloudflare KV with sliding window approximation.
+ * Fixed-window rate limiter on Cloudflare KV. The window number is part of the key, so each
+ * window starts from zero; the TTL only cleans up old keys and never extends a window.
  */
 export async function rateLimitMiddleware(
   c: Context<{ Bindings: Env }>,
@@ -23,7 +24,8 @@ export async function rateLimitMiddleware(
   if (path === '/health') return next();
 
   const ip = getClientIp(c);
-  const key = `rl:${ip}`;
+  const window = Math.floor(Date.now() / 1000 / WINDOW_SECONDS);
+  const key = `rl:${ip}:${window}`;
 
   try {
     const current = await c.env.RATE_LIMIT.get(key);
@@ -39,7 +41,8 @@ export async function rateLimitMiddleware(
     // Increment (fire-and-forget for performance)
     c.executionCtx.waitUntil(
       c.env.RATE_LIMIT.put(key, String(count + 1), {
-        expirationTtl: WINDOW_SECONDS,
+        // KV's minimum TTL is 60 s; keep the key a little past its window.
+        expirationTtl: WINDOW_SECONDS + 60,
       }),
     );
 
