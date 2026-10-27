@@ -5,7 +5,7 @@ import { buildTeamsPayload } from '../src/channels/teams';
 import { buildTelegramPayload } from '../src/channels/telegram';
 import { buildNtfyPayload } from '../src/channels/ntfy';
 import { buildWebhookPayload } from '../src/channels/webhook';
-import { buildEmailHtml } from '../src/services/email-template';
+import { buildEmail } from '../src/services/email-template';
 import { buildLegacyForward } from '../src/routes/webhooks';
 import { call, makeEnv, mockFetch, seedChannel, seedInbox } from './helpers';
 
@@ -84,7 +84,7 @@ describe('raw-only bodies', () => {
   });
 
   test('email shows the raw text escaped', () => {
-    const html = buildEmailHtml('site', { raw: RAW });
+    const html = buildEmail('site', { raw: RAW }, 'New submission').html;
     expect(html).toContain('line one &lt;b&gt;&amp;&lt;/b&gt;');
     expect(html).toContain('line two');
   });
@@ -122,7 +122,7 @@ describe('a form field named raw next to other fields', () => {
     expect(telegramText(body)).toContain('<b>Raw:</b> field value');
     expect(ntfyBody(body)).toContain('Raw: field value');
     expect(JSON.parse(buildWebhookPayload({ url: 'https://example.com/h' }, ctx(body)).body)).toEqual(body);
-    expect(buildEmailHtml('site', body)).toContain('field value');
+    expect(buildEmail('site', body, 'New submission').html).toContain('field value');
   });
 });
 

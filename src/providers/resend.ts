@@ -1,4 +1,4 @@
-import type { EmailProvider } from './base';
+import type { EmailBody, EmailProvider } from './base';
 import type { ResendProviderConfig } from '../types';
 import { sanitizeAddress, sanitizeHeaderValue } from './headers';
 
@@ -20,7 +20,7 @@ export class ResendProvider implements EmailProvider {
   async sendEmail(
     to: string,
     subject: string,
-    htmlBody: string,
+    body: EmailBody,
     senderName?: string,
   ): Promise<void> {
     // Resend parses "Name <email>" itself, so the name only loses control characters and the
@@ -38,7 +38,8 @@ export class ResendProvider implements EmailProvider {
         from,
         to: [sanitizeAddress(to)],
         subject: sanitizeHeaderValue(subject),
-        html: htmlBody,
+        html: body.html,
+        text: body.text,
       }),
     });
 

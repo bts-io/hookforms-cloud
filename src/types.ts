@@ -48,7 +48,10 @@ export interface WebhookEvent {
 export interface EmailJob {
   to: string;
   subject: string;
+  /** Designed HTML part. */
   body: string;
+  /** Plain-text twin, built from the same rows. */
+  text: string;
   sender_name?: string;
   /** Inbox ID for provider resolution. If absent, falls back to env Gmail. */
   inbox_id?: string;

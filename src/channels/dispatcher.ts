@@ -19,7 +19,7 @@ import { buildNtfyPayload } from './ntfy';
 import { buildWebhookPayload } from './webhook';
 import { buildEmailPayload } from './email';
 import { detectChannelType } from './detect';
-import { buildEmailHtml } from '../services/email-template';
+import { buildEmail } from '../services/email-template';
 
 const EMAIL_LIMIT = 10;
 const EMAIL_WINDOW_SECONDS = 600;
@@ -167,19 +167,24 @@ export async function dispatchNotifications(
           }
 
           const emailPayload = buildEmailPayload(config as EmailChannelConfig);
-          const htmlBody = buildEmailHtml(context.slug, context.body, context.senderName);
-
           // Determine subject detail
           const name = String(body.name || 'Unknown');
           const subjectDetail = name !== 'Unknown' ? `from ${name}` : 'New Submission';
+          const mail = buildEmail(
+            context.slug,
+            context.body,
+            `${context.subjectPrefix} ${subjectDetail}`,
+            context.senderName,
+          );
 
           // Queue email for each recipient (with inbox_id for provider resolution)
           for (const to of emailPayload.recipients) {
             executionCtx.waitUntil(
               env.EMAIL_QUEUE.send({
                 to,
-                subject: `${context.subjectPrefix} ${subjectDetail}`,
-                body: htmlBody,
+                subject: mail.subject,
+                body: mail.html,
+                text: mail.text,
                 sender_name: context.senderName,
                 inbox_id: inbox.id,
               }).catch((err) => console.error(`Email queue send failed for ${to} on channel ${channel.id}:`, err)),

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env, Inbox } from '../types';
 import { requireScope } from '../middleware/auth';
 import { verifyTurnstile } from '../services/turnstile';
-import { buildEmailHtml } from '../services/email-template';
+import { buildEmail } from '../services/email-template';
 import { dispatchNotifications, takeEmailSlot } from '../channels/dispatcher';
 import { formatValue } from '../services/format-value';
 import { buildDiscordPayload } from '../channels/discord';
@@ -195,7 +195,7 @@ publicWebhooks.all('/hooks/:slug', async (c) => {
         const prefix = inbox.email_subject_prefix || `[${slug}]`;
         const name = String(body.name || 'Unknown');
         const subjectDetail = name !== 'Unknown' ? `from ${name}` : 'New Submission';
-        const htmlBody = buildEmailHtml(slug, body, inbox.sender_name ?? undefined);
+        const mail = buildEmail(slug, body, `${prefix} ${subjectDetail}`, inbox.sender_name ?? undefined);
 
         const recipients = inbox.notify_email.split(',').map((e: string) => e.trim()).filter(Boolean);
 
@@ -203,8 +203,9 @@ publicWebhooks.all('/hooks/:slug', async (c) => {
           c.executionCtx.waitUntil(
             c.env.EMAIL_QUEUE.send({
               to,
-              subject: `${prefix} ${subjectDetail}`,
-              body: htmlBody,
+              subject: mail.subject,
+              body: mail.html,
+              text: mail.text,
               sender_name: inbox.sender_name ?? undefined,
               inbox_id: inbox.id,
             }),

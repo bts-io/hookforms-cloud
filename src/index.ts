@@ -7,7 +7,7 @@ import { auth } from './routes/auth';
 import { channels } from './routes/channels';
 import { resolveEmailProvider, GmailProvider } from './providers';
 import { requireScope } from './middleware/auth';
-import { buildEmailHtml } from './services/email-template';
+import { buildEmail } from './services/email-template';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -106,13 +106,18 @@ app.post('/v1/diag/test-email', requireScope('admin'), async (c) => {
       return c.json({ error: { code: 500, message: 'Gmail not configured in env' } }, 500);
     }
 
-    const htmlBody = buildEmailHtml('diag-test', {
-      name: 'Diagnostic Test',
-      email: 'diag@hookforms.dev',
-      message: `This is a test email sent at ${new Date().toISOString()} to verify Gmail OAuth is working.`,
-    }, 'HookForms Diagnostic');
+    const mail = buildEmail(
+      'diag-test',
+      {
+        name: 'Diagnostic Test',
+        email: 'diag@hookforms.dev',
+        message: `This is a test email sent at ${new Date().toISOString()} to check that Gmail OAuth works.`,
+      },
+      '[HookForms Diag] Test Email',
+      'HookForms Diagnostic',
+    );
 
-    await provider.sendEmail(to, '[HookForms Diag] Test Email', htmlBody, 'HookForms Diagnostic');
+    await provider.sendEmail(to, mail.subject, { html: mail.html, text: mail.text }, 'HookForms Diagnostic');
 
     return c.json({ data: { status: 'sent', to } });
   } catch (err) {
@@ -186,7 +191,7 @@ export default {
           continue;
         }
 
-        await provider.sendEmail(job.to, job.subject, job.body, job.sender_name);
+        await provider.sendEmail(job.to, job.subject, { html: job.body, text: job.text }, job.sender_name);
         msg.ack();
       } catch (err) {
         console.error('Email send failed:', err);

@@ -1,4 +1,4 @@
-import type { EmailProvider } from './base';
+import type { EmailBody, EmailProvider } from './base';
 import type { SendGridProviderConfig } from '../types';
 import { sanitizeAddress, sanitizeHeaderValue } from './headers';
 
@@ -20,7 +20,7 @@ export class SendGridProvider implements EmailProvider {
   async sendEmail(
     to: string,
     subject: string,
-    htmlBody: string,
+    body: EmailBody,
     senderName?: string,
   ): Promise<void> {
     const displayName = sanitizeHeaderValue(senderName || 'HookForms');
@@ -35,7 +35,11 @@ export class SendGridProvider implements EmailProvider {
         personalizations: [{ to: [{ email: sanitizeAddress(to) }] }],
         from: { email: sanitizeAddress(this.fromEmail), name: displayName },
         subject: sanitizeHeaderValue(subject),
-        content: [{ type: 'text/html', value: htmlBody }],
+        // SendGrid wants text/plain before text/html.
+        content: [
+          { type: 'text/plain', value: body.text },
+          { type: 'text/html', value: body.html },
+        ],
       }),
     });
 

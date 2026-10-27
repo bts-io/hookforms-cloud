@@ -45,7 +45,7 @@ describe('email header values', () => {
     await p.sendEmail(
       'to@example.com\r\nCc: cc@example.com',
       `[x] from ${EVIL_NAME}`,
-      '<p>hi</p>',
+      { html: '<p>hi</p>', text: 'hi' },
       'Name\r\nReply-To: evil@example.com',
     );
     const headers = headerBlock(await sentGmailMessage(fetchMock));
@@ -62,7 +62,7 @@ describe('email header values', () => {
       refresh_token: 'refresh-utf8-123456',
       sender_email: 'sender@example.com',
     });
-    await p.sendEmail('to@example.com', '[x] from Zoë Ångström', '<p>hi</p>', 'Café');
+    await p.sendEmail('to@example.com', '[x] from Zoë Ångström', { html: '<p>hi</p>', text: 'hi' }, 'Café');
     const headers = headerBlock(await sentGmailMessage(fetchMock));
     // The header block itself is plain ASCII.
     expect(/^[\x20-\x7e\r\n\t]*$/.test(headers)).toBe(true);
@@ -81,7 +81,7 @@ describe('email header values', () => {
     await new ResendProvider({ api_key: 'k', from_email: 'from@example.com' }).sendEmail(
       'to@example.com\r\nBcc: x@example.com',
       `[x] from ${EVIL_NAME}`,
-      '<p>hi</p>',
+      { html: '<p>hi</p>', text: 'hi' },
       'Name\r\nBcc: y@example.com',
     );
     const body = (await fetchMock.calls[0].json()) as { from: string; to: string[]; subject: string };
@@ -93,7 +93,7 @@ describe('email header values', () => {
     await new SendGridProvider({ api_key: 'k', from_email: 'from@example.com' }).sendEmail(
       'to@example.com\r\nBcc: x@example.com',
       `[x] from ${EVIL_NAME}`,
-      '<p>hi</p>',
+      { html: '<p>hi</p>', text: 'hi' },
       'Name\r\nBcc: y@example.com',
     );
     const body = (await fetchMock.calls[0].json()) as {
