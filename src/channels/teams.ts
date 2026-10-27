@@ -1,6 +1,9 @@
 import type { TeamsChannelConfig } from '../types';
 import type { ChannelPayload, ChannelContext } from './base';
 import { formatValue } from '../services/format-value';
+import { fitText, rawOnlyText, visibleEntries } from './raw';
+
+const TEAMS_MAX_TEXT = 20000;
 
 /**
  * Microsoft Teams channel adapter
@@ -11,8 +14,8 @@ export function buildTeamsPayload(
   context: ChannelContext,
 ): ChannelPayload {
   // Filter out sensitive/internal fields
-  const filteredBody = Object.entries(context.body)
-    .filter(([k]) => k !== 'cf-turnstile-response' && k !== 'raw');
+  const filteredBody = visibleEntries(context.body);
+  const raw = rawOnlyText(context.body);
 
   // Build Adaptive Card FactSet
   const facts = filteredBody.map(([k, v]) => ({
@@ -35,10 +38,9 @@ export function buildTeamsPayload(
               weight: 'Bolder',
               size: 'Large',
             },
-            {
-              type: 'FactSet',
-              facts,
-            },
+            raw !== null
+              ? { type: 'TextBlock', text: fitText(raw, TEAMS_MAX_TEXT), wrap: true }
+              : { type: 'FactSet', facts },
             {
               type: 'TextBlock',
               text: `hookforms/hooks/${context.slug}`,

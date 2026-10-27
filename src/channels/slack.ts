@@ -1,6 +1,19 @@
 import type { SlackChannelConfig } from '../types';
 import type { ChannelPayload, ChannelContext } from './base';
 import { formatValue } from '../services/format-value';
+import { fitText, rawOnlyText, visibleEntries } from './raw';
+
+const SLACK_MAX_SECTION_TEXT = 3000;
+
+/** The three characters Slack mrkdwn requires escaped. */
+function escapeMrkdwn(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Section text for a body that was not a form or JSON object: the text itself, escaped and capped. */
+export function slackRawText(raw: string): string {
+  return fitText(raw, SLACK_MAX_SECTION_TEXT, escapeMrkdwn);
+}
 
 /**
  * Slack channel adapter
@@ -11,11 +24,14 @@ export function buildSlackPayload(
   context: ChannelContext,
 ): ChannelPayload {
   // Filter out sensitive/internal fields
-  const filteredBody = Object.entries(context.body)
-    .filter(([k]) => k !== 'cf-turnstile-response' && k !== 'raw');
+  const filteredBody = visibleEntries(context.body);
+  const raw = rawOnlyText(context.body);
 
   // Build Slack mrkdwn lines
-  const lines = filteredBody.map(([k, v]) => `*${k.replace(/_/g, ' ')}:* ${formatValue(v)}`);
+  const lines =
+    raw !== null
+      ? [slackRawText(raw)]
+      : filteredBody.map(([k, v]) => `*${k.replace(/_/g, ' ')}:* ${formatValue(v)}`);
 
   const payload = {
     text: `${context.subjectPrefix} New Submission`,

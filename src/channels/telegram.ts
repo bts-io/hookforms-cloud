@@ -1,6 +1,9 @@
 import type { TelegramChannelConfig } from '../types';
 import type { ChannelPayload, ChannelContext } from './base';
 import { formatValue } from '../services/format-value';
+import { fitText, rawOnlyText, visibleEntries } from './raw';
+
+const TELEGRAM_MAX_TEXT = 4096;
 
 /** The four characters Telegram's HTML parse mode requires escaped. */
 function escapeHtml(value: string): string {
@@ -20,13 +23,17 @@ export function buildTelegramPayload(
   context: ChannelContext,
 ): ChannelPayload {
   // Filter out sensitive/internal fields
-  const filteredBody = Object.entries(context.body)
-    .filter(([k]) => k !== 'cf-turnstile-response' && k !== 'raw');
+  const filteredBody = visibleEntries(context.body);
+  const raw = rawOnlyText(context.body);
 
   // Build HTML formatted text. Every submitted value is escaped: under parse_mode HTML a
   // stray "<" makes Telegram reject the message, and real tags would render as links or markup.
-  const title = `<b>${escapeHtml(context.subjectPrefix)} New Submission</b>`;
-  const fields = filteredBody
+  const titleText = `${context.subjectPrefix} New Submission`;
+  const title = `<b>${escapeHtml(titleText)}</b>`;
+  // Telegram's 4096 limit counts the text after entity parsing, so the raw text is cut before escaping.
+  const fields = raw !== null
+    ? escapeHtml(fitText(raw, Math.max(1, TELEGRAM_MAX_TEXT - titleText.length - 2)))
+    : filteredBody
     .map(([k, v]) => {
       const fieldName = k.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
       return `<b>${escapeHtml(fieldName)}:</b> ${escapeHtml(formatValue(v))}`;

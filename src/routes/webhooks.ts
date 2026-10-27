@@ -6,6 +6,8 @@ import { buildEmailHtml } from '../services/email-template';
 import { dispatchNotifications, takeEmailSlot } from '../channels/dispatcher';
 import { formatValue } from '../services/format-value';
 import { buildDiscordPayload } from '../channels/discord';
+import { slackRawText } from '../channels/slack';
+import { rawContentType, rawOnlyText } from '../channels/raw';
 import { checkOutboundUrl } from '../channels/validate';
 import { parsePaging } from '../services/pagination';
 
@@ -14,8 +16,9 @@ const webhooks = new Hono<{ Bindings: Env }>();
 /**
  * Build the request for an inbox's legacy forward_url. Discord and Slack URLs get a formatted
  * message (Discord through the same builder as Discord channels: empty values skipped, at most
- * 25 fields); any other URL gets the raw body with the original method, and GET or HEAD forwards
- * carry no body, since fetch refuses one there.
+ * 25 fields); any other URL gets the body with the original method, and GET or HEAD forwards
+ * carry no body, since fetch refuses one there. A body that was not a form or JSON object is
+ * shown as its text, and forwarded to other URLs as the original text.
  */
 export function buildLegacyForward(
   inbox: Pick<Inbox, 'forward_url' | 'email_subject_prefix' | 'sender_name'>,
@@ -38,10 +41,15 @@ export function buildLegacyForward(
     return { method: 'POST', headers, body: payload.body };
   }
 
+  const raw = rawOnlyText(body);
+
   if (url.includes('hooks.slack.com/')) {
-    const lines = Object.entries(body)
-      .filter(([k, v]) => v && k !== 'cf-turnstile-response')
-      .map(([k, v]) => `*${k.replace(/_/g, ' ')}:* ${formatValue(v)}`);
+    const lines =
+      raw !== null
+        ? [slackRawText(raw)]
+        : Object.entries(body)
+            .filter(([k, v]) => v && k !== 'cf-turnstile-response')
+            .map(([k, v]) => `*${k.replace(/_/g, ' ')}:* ${formatValue(v)}`);
     return {
       method: 'POST',
       headers,
@@ -54,6 +62,7 @@ export function buildLegacyForward(
 
   const m = method.toUpperCase();
   if (m === 'GET' || m === 'HEAD') return { method: m, headers };
+  if (raw !== null) return { method: m, headers: { ...headers, 'Content-Type': rawContentType(raw) }, body: raw };
   return { method: m, headers, body: JSON.stringify(body) };
 }
 
@@ -99,16 +108,14 @@ publicWebhooks.all('/hooks/:slug', async (c) => {
     } catch {
       /* fall through to raw text */
     }
-  } else if (contentType.includes('application/json')) {
-    try {
-      body = await c.req.json();
-    } catch {
-      /* fall through to raw text */
-    }
   } else {
-    // Unknown content-type: try JSON first, then raw text
+    // JSON or unknown content-type: a JSON object is used as the fields; anything else (an array,
+    // a primitive, text that does not parse) is kept as text under `raw` below.
     try {
-      body = await c.req.json();
+      const parsed: unknown = await c.req.json();
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        body = parsed as Record<string, unknown>;
+      }
     } catch {
       /* fall through to raw text */
     }

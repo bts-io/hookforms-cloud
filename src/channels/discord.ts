@@ -1,8 +1,10 @@
 import type { DiscordChannelConfig } from '../types';
 import type { ChannelPayload, ChannelContext } from './base';
 import { formatValue } from '../services/format-value';
+import { fitText, rawOnlyText, visibleEntries } from './raw';
 
 const DISCORD_MAX_FIELDS = 25;
+const DISCORD_MAX_DESCRIPTION = 4096;
 
 /**
  * Discord channel adapter
@@ -13,13 +15,14 @@ export function buildDiscordPayload(
   context: ChannelContext,
 ): ChannelPayload {
   // Filter out sensitive/internal fields
-  const filteredBody = Object.entries(context.body)
-    .filter(([k]) => k !== 'cf-turnstile-response' && k !== 'raw');
+  const filteredBody = visibleEntries(context.body);
+  // A body that was not a form or JSON object is shown as text in the description.
+  const raw = rawOnlyText(context.body);
 
   // Build Discord embed fields. Discord rejects the whole message for an empty field value,
   // more than 25 fields, or a name over 256 characters, so empty values are skipped and
   // the rest capped.
-  const fields = filteredBody
+  const fields = raw !== null ? [] : filteredBody
     .map(([k, v]) => ({ k, formatted: v == null ? '' : formatValue(v, 1024) }))
     .filter(({ formatted }) => formatted.trim() !== '')
     .slice(0, DISCORD_MAX_FIELDS)
@@ -32,6 +35,7 @@ export function buildDiscordPayload(
   const embed = {
     title: `${context.subjectPrefix} New Submission`,
     color: 0xd4a843, // Gold color
+    ...(raw !== null && raw.trim() !== '' ? { description: fitText(raw, DISCORD_MAX_DESCRIPTION) } : {}),
     fields,
     footer: { text: `hookforms/hooks/${context.slug}` },
     timestamp: new Date().toISOString(),

@@ -1,4 +1,5 @@
 import { formatValue } from './format-value';
+import { rawOnlyText } from '../channels/raw';
 
 /**
  * Build the HTML email body from form fields.
@@ -11,10 +12,18 @@ export function buildEmailHtml(
   const escape = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-  const skipKeys = new Set(['raw', 'source', 'cf-turnstile-response']);
+  const skipKeys = new Set(['source', 'cf-turnstile-response']);
   let fieldRows = '';
 
-  for (const [key, val] of Object.entries(body)) {
+  // A body that was not a form or JSON object is shown as the submitted text.
+  const raw = rawOnlyText(body);
+  if (raw !== null) {
+    fieldRows = `<tr>
+      <td style="padding:10px 14px;color:#222;"><pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-family:Menlo,Consolas,monospace;font-size:13px;">${escape(raw)}</pre></td>
+    </tr>`;
+  }
+
+  for (const [key, val] of raw !== null ? [] : Object.entries(body)) {
     if (skipKeys.has(key) || !val) continue;
     const label = escape(key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
     const value = escape(formatValue(val));
