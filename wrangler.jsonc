@@ -49,6 +49,12 @@
         "max_batch_size": 5,
         "max_retries": 3,
         "dead_letter_queue": "hookforms-emails-dlq"
+      },
+      {
+        // Jobs that failed every retry: logged (ids only) and acknowledged.
+        "queue": "hookforms-emails-dlq",
+        "max_batch_size": 10,
+        "max_retries": 0
       }
     ]
   },

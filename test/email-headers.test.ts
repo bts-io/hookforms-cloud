@@ -125,7 +125,7 @@ describe('email header values', () => {
     fetchMock = googleFetch();
     const { default: worker } = await import('../src/index');
     const msg = { body: EMAIL_QUEUE.sent[0], ack() {}, retry() {} };
-    await worker.queue({ messages: [msg] } as never, env);
+    await worker.queue({ queue: 'hookforms-emails', messages: [msg] } as never, env);
     const headers = headerBlock(await sentGmailMessage(fetchMock));
     expect(headers).not.toMatch(/^(Bcc|X-Injected):/im);
   });

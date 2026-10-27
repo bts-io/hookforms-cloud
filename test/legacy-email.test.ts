@@ -32,7 +32,7 @@ describe('legacy notify_email', () => {
     const { default: worker } = await import('../src/index');
     let acked = false;
     const msg = { body: job, ack: () => (acked = true), retry() {} };
-    await worker.queue({ messages: [msg] } as never, env);
+    await worker.queue({ queue: 'hookforms-emails', messages: [msg] } as never, env);
     expect(acked).toBe(true);
     expect(fetchMock.calls.map((r) => r.url)).toEqual(['https://api.resend.com/emails']);
   });

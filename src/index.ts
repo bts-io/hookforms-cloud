@@ -11,6 +11,13 @@ import { buildEmailHtml } from './services/email-template';
 
 const app = new Hono<{ Bindings: Env }>();
 
+// Delays between email send attempts: 30 s, 2 min, then 10 min for any later attempt.
+const RETRY_DELAYS_SECONDS = [30, 120, 600];
+
+export function retryDelaySeconds(attempts: number): number {
+  return RETRY_DELAYS_SECONDS[Math.min(Math.max(attempts, 1), RETRY_DELAYS_SECONDS.length) - 1];
+}
+
 // CORS
 app.use('*', cors());
 
@@ -142,8 +149,20 @@ app.onError((err, c) => {
 export default {
   fetch: app.fetch,
 
-  // Queue consumer: send emails via resolved provider
+  // Queue consumer: send emails via resolved provider. Jobs that run out of retries land in the
+  // dead-letter queue, whose consumer only logs them.
   async queue(batch: MessageBatch<EmailJob>, env: Env): Promise<void> {
+    if (batch.queue.endsWith('-dlq')) {
+      for (const msg of batch.messages) {
+        // Ids and counts only: never the recipient, subject or body.
+        console.log(
+          `Email job dead-lettered: message=${msg.id} inbox=${msg.body?.inbox_id || 'env'} attempts=${msg.attempts}`,
+        );
+        msg.ack();
+      }
+      return;
+    }
+
     // Cache providers per inbox to avoid repeated DB lookups within a batch
     const providerCache = new Map<string, Awaited<ReturnType<typeof resolveEmailProvider>>>();
 
@@ -171,7 +190,7 @@ export default {
         msg.ack();
       } catch (err) {
         console.error('Email send failed:', err);
-        msg.retry();
+        msg.retry({ delaySeconds: retryDelaySeconds(msg.attempts) });
       }
     }
   },
