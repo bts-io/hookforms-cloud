@@ -6,6 +6,11 @@ const SLACK = 'https://hooks.slack.com/services/T/B/x';
 const TEAMS = 'https://example.webhook.office.com/webhookb2/x';
 const GENERIC = 'https://example.com/hook';
 
+function storedConfig(DB: ReturnType<typeof makeEnv>['DB'], id: string) {
+  const row = DB.raw.query('SELECT config FROM notification_channels WHERE id = ?').get(id) as { config: string };
+  return JSON.parse(row.config) as Record<string, string>;
+}
+
 let fetchMock: ReturnType<typeof mockFetch> | null = null;
 afterEach(() => {
   fetchMock?.restore();
@@ -42,8 +47,9 @@ describe('channel url keys', () => {
         body: JSON.stringify({ type, config }),
       });
       expect(res.status).toBe(201);
-      const json = (await res.json()) as { data: { config: Record<string, string> } };
-      expect(json.data.config).toEqual({ [key]: value });
+      const json = (await res.json()) as { data: { id: string; config: Record<string, string> } };
+      expect(Object.keys(json.data.config)).toEqual([key]);
+      expect(storedConfig(DB, json.data.id)).toEqual({ [key]: value });
     }
   });
 
@@ -58,7 +64,8 @@ describe('channel url keys', () => {
     });
     expect(res.status).toBe(200);
     const json = (await res.json()) as { data: { config: Record<string, string> } };
-    expect(json.data.config).toEqual({ webhook_url: `${DISCORD}2` });
+    expect(Object.keys(json.data.config)).toEqual(['webhook_url']);
+    expect(storedConfig(DB, id)).toEqual({ webhook_url: `${DISCORD}2` });
   });
 
   test('senders accept rows stored under the other key', async () => {

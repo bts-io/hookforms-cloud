@@ -32,4 +32,41 @@ describe('secret redaction', () => {
     expect(JSON.stringify(headers)).not.toContain('tok');
     expect(JSON.stringify(headers)).not.toContain('abc');
   });
+
+  test('POST channel response hides the URL secret and custom header values', async () => {
+    const { env, DB } = makeEnv();
+    seedInbox(DB, { slug: 'h' });
+    const res = await call(env, '/v1/hooks/inboxes/h/channels', {
+      method: 'POST',
+      headers: ADMIN,
+      body: JSON.stringify({
+        type: 'webhook',
+        config: { url: 'https://example.com/hook/secretpath123', custom_headers: { Authorization: 'Bearer tok' } },
+      }),
+    });
+    expect(res.status).toBe(201);
+    const text = await res.text();
+    expect(text).not.toContain('secretpath123');
+    expect(text).not.toContain('Bearer tok');
+    expect(text).toContain('Authorization');
+  });
+
+  test('PATCH channel response hides the URL secret and custom header values', async () => {
+    const { env, DB } = makeEnv();
+    const inboxId = seedInbox(DB, { slug: 'h' });
+    const id = seedChannel(DB, inboxId, 'webhook', {
+      url: 'https://example.com/hook/secretpath123',
+      custom_headers: { 'X-Key': 'abcsecret' },
+    });
+    const res = await call(env, `/v1/hooks/inboxes/h/channels/${id}`, {
+      method: 'PATCH',
+      headers: ADMIN,
+      body: JSON.stringify({ label: 'renamed' }),
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain('secretpath123');
+    expect(text).not.toContain('abcsecret');
+    expect(text).toContain('renamed');
+  });
 });

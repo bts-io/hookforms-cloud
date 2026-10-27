@@ -114,7 +114,7 @@ channels.post('/inboxes/:slug/channels', requireScope('webhooks'), async (c) => 
   return c.json({
     data: {
       ...channel,
-      config: channel ? JSON.parse(channel.config) : null,
+      config: channel ? redactConfig(JSON.parse(channel.config)) : null,
     },
   }, 201);
 });
@@ -203,7 +203,7 @@ channels.patch('/inboxes/:slug/channels/:channelId', requireScope('webhooks'), a
   return c.json({
     data: {
       ...updated,
-      config: updated ? JSON.parse(updated.config) : null,
+      config: updated ? redactConfig(JSON.parse(updated.config)) : null,
     },
   });
 });
