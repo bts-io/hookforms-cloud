@@ -20,11 +20,17 @@ export function buildMimeMessage(opts: {
   to: string;
   subject: string;
   body: EmailBody;
+  /** Optional Reply-To address; left out when empty after cleaning. */
+  replyTo?: string;
+  /** Optional display name for the Reply-To address. */
+  replyToName?: string;
 }): string {
   const boundary = `hf_${crypto.randomUUID().replace(/-/g, '')}`;
+  const replyTo = opts.replyTo ? sanitizeAddress(opts.replyTo) : '';
   return [
     `From: ${formatMailbox(opts.fromName, opts.fromEmail)}`,
     `To: ${sanitizeAddress(opts.to)}`,
+    ...(replyTo ? [`Reply-To: ${formatMailbox(opts.replyToName ?? '', replyTo)}`] : []),
     `Subject: ${encodeHeaderWord(opts.subject)}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/alternative; boundary="${boundary}"`,

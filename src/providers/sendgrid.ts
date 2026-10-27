@@ -1,4 +1,4 @@
-import type { EmailBody, EmailProvider } from './base';
+import type { EmailBody, EmailProvider, SendOptions } from './base';
 import type { SendGridProviderConfig } from '../types';
 import { parseMailbox, sanitizeAddress, sanitizeHeaderValue } from './headers';
 
@@ -26,8 +26,11 @@ export class SendGridProvider implements EmailProvider {
     subject: string,
     body: EmailBody,
     senderName?: string,
+    options?: SendOptions,
   ): Promise<void> {
     const displayName = sanitizeHeaderValue(senderName || this.fromName || 'HookForms');
+    const replyTo = options?.replyTo ? sanitizeAddress(options.replyTo) : '';
+    const replyName = sanitizeHeaderValue(options?.replyToName ?? '');
 
     const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
@@ -39,6 +42,9 @@ export class SendGridProvider implements EmailProvider {
         personalizations: [{ to: [{ email: sanitizeAddress(to) }] }],
         from: { email: sanitizeAddress(this.fromEmail), name: displayName },
         subject: sanitizeHeaderValue(subject),
+        ...(replyTo
+          ? { reply_to: { email: replyTo, ...(replyName ? { name: replyName } : {}) } }
+          : {}),
         // SendGrid wants text/plain before text/html.
         content: [
           { type: 'text/plain', value: body.text },

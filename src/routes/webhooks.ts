@@ -3,6 +3,7 @@ import type { Env, Inbox } from '../types';
 import { requireScope } from '../middleware/auth';
 import { verifyTurnstile } from '../services/turnstile';
 import { buildEmail } from '../services/email-template';
+import { submitterReplyTo } from '../providers/headers';
 import { dispatchNotifications, takeEmailSlot } from '../channels/dispatcher';
 import { formatValue } from '../services/format-value';
 import { buildDiscordPayload } from '../channels/discord';
@@ -198,6 +199,8 @@ publicWebhooks.all('/hooks/:slug', async (c) => {
         const mail = buildEmail(slug, body, `${prefix} ${subjectDetail}`);
 
         const recipients = inbox.notify_email.split(',').map((e: string) => e.trim()).filter(Boolean);
+        // Replying to the notification answers the submitter (their own `email` field).
+        const reply = submitterReplyTo(body);
 
         for (const to of recipients) {
           c.executionCtx.waitUntil(
@@ -208,6 +211,8 @@ publicWebhooks.all('/hooks/:slug', async (c) => {
               text: mail.text,
               sender_name: inbox.sender_name ?? undefined,
               inbox_id: inbox.id,
+              ...(reply ? { reply_to: reply.replyTo } : {}),
+              ...(reply?.replyToName ? { reply_to_name: reply.replyToName } : {}),
             }),
           );
         }

@@ -20,6 +20,7 @@ import { buildWebhookPayload } from './webhook';
 import { buildEmailPayload } from './email';
 import { detectChannelType } from './detect';
 import { buildEmail } from '../services/email-template';
+import { submitterReplyTo } from '../providers/headers';
 
 const EMAIL_LIMIT = 10;
 const EMAIL_WINDOW_SECONDS = 600;
@@ -176,6 +177,9 @@ export async function dispatchNotifications(
             `${context.subjectPrefix} ${subjectDetail}`,
           );
 
+          // Replying to the notification answers the submitter (their own `email` field).
+          const reply = submitterReplyTo(context.body);
+
           // Queue email for each recipient (with inbox_id for provider resolution)
           for (const to of emailPayload.recipients) {
             executionCtx.waitUntil(
@@ -187,6 +191,8 @@ export async function dispatchNotifications(
                 // Only the inbox's own name: without one the provider's from_name applies.
                 sender_name: inbox.sender_name || undefined,
                 inbox_id: inbox.id,
+                ...(reply ? { reply_to: reply.replyTo } : {}),
+                ...(reply?.replyToName ? { reply_to_name: reply.replyToName } : {}),
               }).catch((err) => console.error(`Email queue send failed for ${to} on channel ${channel.id}:`, err)),
             );
           }

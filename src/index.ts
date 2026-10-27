@@ -207,7 +207,17 @@ export default {
           continue;
         }
 
-        await provider.sendEmail(job.to, job.subject, { html: job.body, text: job.text }, job.sender_name);
+        // Form notifications carry the submitter, so a reply answers them.
+        const options = job.reply_to
+          ? { replyTo: job.reply_to, replyToName: job.reply_to_name }
+          : undefined;
+        await provider.sendEmail(
+          job.to,
+          job.subject,
+          { html: job.body, text: job.text },
+          job.sender_name,
+          options,
+        );
         msg.ack();
       } catch (err) {
         console.error('Email send failed:', err);

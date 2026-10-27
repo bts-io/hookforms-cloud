@@ -55,6 +55,10 @@ export interface EmailJob {
   sender_name?: string;
   /** Inbox ID for provider resolution. If absent, falls back to env Gmail. */
   inbox_id?: string;
+  /** The submitter's email (form notifications), sent as the Reply-To. */
+  reply_to?: string;
+  /** The submitter's name, shown with the Reply-To address. */
+  reply_to_name?: string;
 }
 
 export type ChannelType = 'email' | 'discord' | 'slack' | 'teams' | 'telegram' | 'ntfy' | 'webhook';

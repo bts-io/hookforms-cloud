@@ -4,6 +4,14 @@ export interface EmailBody {
   text: string;
 }
 
+/** Optional per-message settings every provider honours. */
+export interface SendOptions {
+  /** Address replies should go to (the Reply-To header), e.g. a form submitter. */
+  replyTo?: string;
+  /** Display name for the Reply-To address. */
+  replyToName?: string;
+}
+
 /**
  * Common interface for all email providers.
  * Each provider implements sendEmail() using its own API/protocol and always sends both parts
@@ -11,7 +19,13 @@ export interface EmailBody {
  */
 export interface EmailProvider {
   readonly type: string;
-  sendEmail(to: string, subject: string, body: EmailBody, senderName?: string): Promise<void>;
+  sendEmail(
+    to: string,
+    subject: string,
+    body: EmailBody,
+    senderName?: string,
+    options?: SendOptions,
+  ): Promise<void>;
 }
 
 /**

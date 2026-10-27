@@ -73,6 +73,21 @@ export function formatMailbox(name: string, email: string): string {
 const ADDRESS_RE = /^[^\s@<>()[\]",;:\\]+@[^\s@<>()[\]",;:\\.]+(\.[^\s@<>()[\]",;:\\.]+)+$/;
 
 /**
+ * Reply-To for a form notification: the submission's `email` field (the same one the "Reply to"
+ * button uses), named by its `name` field. Both are cleaned of CR/LF and other control
+ * characters. No valid address means no Reply-To. Never used as the From address.
+ */
+export function submitterReplyTo(
+  body: Record<string, unknown>,
+): { replyTo: string; replyToName?: string } | undefined {
+  if (typeof body.email !== 'string') return undefined;
+  const replyTo = sanitizeAddress(body.email);
+  if (replyTo.length > 254 || !ADDRESS_RE.test(replyTo)) return undefined;
+  const replyToName = typeof body.name === 'string' ? sanitizeHeaderValue(body.name) : '';
+  return replyToName ? { replyTo, replyToName } : { replyTo };
+}
+
+/**
  * Parse a sender given either as a bare address (`forms@example.com`) or as a mailbox with a
  * display name (`Forms <forms@example.com>`, `"Acme, Forms" <forms@example.com>`). Returns the
  * bare address and the name, if any, or null when what is left is not a valid address.

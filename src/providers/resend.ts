@@ -1,4 +1,4 @@
-import type { EmailBody, EmailProvider } from './base';
+import type { EmailBody, EmailProvider, SendOptions } from './base';
 import type { ResendProviderConfig } from '../types';
 import { parseMailbox, sanitizeAddress, sanitizeHeaderValue } from './headers';
 
@@ -26,12 +26,17 @@ export class ResendProvider implements EmailProvider {
     subject: string,
     body: EmailBody,
     senderName?: string,
+    options?: SendOptions,
   ): Promise<void> {
     // Resend parses "Name <email>" itself, so the name only loses control characters and the
     // characters that would end it early. A name with commas or other specials is quoted.
     const displayName = sanitizeHeaderValue(senderName || this.fromName || 'HookForms').replace(/[<>"]/g, '');
     const name = /[()[\]:;@\\,.]/.test(displayName) ? `"${displayName.replace(/\\/g, '\\\\')}"` : displayName;
     const from = `${name} <${sanitizeAddress(this.fromEmail)}>`;
+    const replyAddress = options?.replyTo ? sanitizeAddress(options.replyTo) : '';
+    const replyName = sanitizeHeaderValue(options?.replyToName ?? '').replace(/[<>"]/g, '');
+    const quotedName = /[()[\]:;@\\,.]/.test(replyName) ? `"${replyName.replace(/\\/g, '\\\\')}"` : replyName;
+    const replyTo = replyAddress && replyName ? `${quotedName} <${replyAddress}>` : replyAddress;
 
     const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -45,6 +50,7 @@ export class ResendProvider implements EmailProvider {
         subject: sanitizeHeaderValue(subject),
         html: body.html,
         text: body.text,
+        ...(replyTo ? { reply_to: replyTo } : {}),
       }),
     });
 

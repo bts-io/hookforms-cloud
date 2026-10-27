@@ -1,4 +1,4 @@
-import type { EmailBody, EmailProvider } from './base';
+import type { EmailBody, EmailProvider, SendOptions } from './base';
 import type { GmailProviderConfig } from '../types';
 import { parseMailbox } from './headers';
 import { buildMimeMessage } from './mime';
@@ -106,6 +106,7 @@ export class GmailProvider implements EmailProvider {
     subject: string,
     body: EmailBody,
     senderName?: string,
+    options?: SendOptions,
   ): Promise<void> {
     const accessToken = await this.getAccessToken();
     const displayName = senderName || this.fromName || 'HookForms';
@@ -119,6 +120,8 @@ export class GmailProvider implements EmailProvider {
       to,
       subject,
       body,
+      replyTo: options?.replyTo,
+      replyToName: options?.replyToName,
     });
     const raw = btoa(message).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
