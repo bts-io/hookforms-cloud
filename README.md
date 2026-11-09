@@ -8,9 +8,9 @@
 </p>
 
 <p align="center">
-  <a href="https://hookforms-docs.h1n054ur.dev">Docs</a> &middot;
+  <a href="https://oss.hookforms.com">Docs</a> &middot;
   <a href="https://github.com/bts-io/hookforms">Self-Hosted Version</a> &middot;
-  <a href="https://hookforms-docs.h1n054ur.dev/getting-started/cloudflare-workers/">Quick Start Guide</a>
+  <a href="https://oss.hookforms.com/getting-started/cloudflare-workers/">Quick Start Guide</a>
 </p>
 
 <p align="center">
@@ -98,6 +98,10 @@ bunx wrangler deploy
 bunx wrangler d1 execute hookforms-db --remote --file=migrations/0001_init.sql
 bunx wrangler d1 execute hookforms-db --remote --file=migrations/0002_notification_channels.sql
 ```
+
+## Hosted option
+
+Running it on your own Cloudflare account is free and fully supported. If you would rather not run a server, HookForms Pro is the hosted version of this project. There is a free plan, and it takes care of email delivery and uptime for you. [hookforms.com](https://hookforms.com/?utm_source=github&utm_medium=readme&utm_campaign=cloud)
 
 ## Usage
 
@@ -207,7 +211,7 @@ Use the `gmail_auth.py` script from the [self-hosted repo](https://github.com/bt
 
 ## API Reference
 
-Full documentation at [hookforms-docs.h1n054ur.dev](https://hookforms-docs.h1n054ur.dev).
+Full documentation at [oss.hookforms.com](https://oss.hookforms.com).
 
 ### Public (no auth)
 
