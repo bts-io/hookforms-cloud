@@ -101,7 +101,7 @@ bunx wrangler d1 execute hookforms-db --remote --file=migrations/0002_notificati
 
 ## Hosted option
 
-Running it on your own Cloudflare account is free and fully supported. If you would rather not run a server, HookForms Pro is the hosted version of this project. There is a free plan, and it takes care of email delivery and uptime for you. [hookforms.com](https://hookforms.com/?utm_source=github&utm_medium=readme&utm_campaign=cloud)
+Running it on your own Cloudflare account is free and fully supported. If you would rather not run a server, HookForms Pro is the hosted version of this project. You can start on the free plan, and the paid plans also send notification email for you. [hookforms.com](https://hookforms.com/?utm_source=github&utm_medium=readme&utm_campaign=cloud)
 
 ## Usage
 
