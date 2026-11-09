@@ -31,7 +31,7 @@ HTML Form  -->  POST /hooks/your-inbox  -->  Discord, Slack, Email, Telegram, ..
 
 - **Multi-channel notifications** -- route submissions to Discord, Slack, Microsoft Teams, Telegram, ntfy, email, or any webhook URL
 - **Auto-detection** -- paste a URL and HookForms detects the channel type automatically
-- **Multiple email providers** -- Gmail (OAuth), Resend, SendGrid -- configure globally or per-inbox
+- **Multiple email providers** -- Gmail (OAuth), Resend, SendGrid. Configure globally or per-inbox
 - **Queue-based email** -- email delivery is decoupled from the request path via Cloudflare Queues
 - **Turnstile bot protection** -- optional Cloudflare Turnstile verification per inbox
 - **Security hardened** -- SSRF blocklist, secret redaction in API responses, scoped API keys
